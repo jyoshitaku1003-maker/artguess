@@ -26,12 +26,14 @@ const WIN_TARGET = 3;
 const ROUND_SECONDS = 60;
 const RECONNECT_GRACE_MS = 15000;
 const MAX_PLAYERS = 6;
+const ROOM_CREATE_LIMIT_TIMEZONE = 'Asia/Tokyo';
 
 // ---- room management ----
 
 const rooms = new Map();       // roomCode -> room
 const playerRoom = new Map();  // socketId -> roomCode
 const sessionRoom = new Map(); // sessionId -> roomCode
+const createdRoomDates = new Map(); // sessionId -> YYYY-MM-DD
 
 function generateRoomCode() {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -65,6 +67,30 @@ function freshRoom(code) {
 function getRoom(socketId) {
   const code = playerRoom.get(socketId);
   return code ? rooms.get(code) : null;
+}
+
+function getTodayKey() {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: ROOM_CREATE_LIMIT_TIMEZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(new Date());
+
+  const year = parts.find((part) => part.type === 'year')?.value;
+  const month = parts.find((part) => part.type === 'month')?.value;
+  const day = parts.find((part) => part.type === 'day')?.value;
+  return `${year}-${month}-${day}`;
+}
+
+function hasCreatedRoomToday(sessionId) {
+  if (!sessionId) return false;
+  return createdRoomDates.get(sessionId) === getTodayKey();
+}
+
+function markRoomCreatedToday(sessionId) {
+  if (!sessionId) return;
+  createdRoomDates.set(sessionId, getTodayKey());
 }
 
 // ---- helpers ----
@@ -363,15 +389,21 @@ io.on('connection', (socket) => {
     const trimmed = String(name ?? '').trim().slice(0, 10);
     if (!trimmed) return;
 
+    const sid = sessionId || randomUUID();
+    if (hasCreatedRoomToday(sid)) {
+      socket.emit('error_msg', 'ルーム作成は1日1回までです。明日もう一度お試しください。');
+      return;
+    }
+
     const code = generateRoomCode();
     const room = freshRoom(code);
-    const sid = sessionId || randomUUID();
 
     room.game.players.push({ id: socket.id, sessionId: sid, name: trimmed, isHost: true, isDrawer: false });
     rooms.set(code, room);
     socket.join(code);
     playerRoom.set(socket.id, code);
     sessionRoom.set(sid, code);
+    markRoomCreatedToday(sid);
 
     socket.emit('joined', { sessionId: sid, roomCode: code });
     socket.emit('game_update', publicState(room));
