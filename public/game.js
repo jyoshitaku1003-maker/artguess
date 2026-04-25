@@ -285,6 +285,8 @@ socket.on('room_list', (list) => {
 });
 
 function showRoomList() {
+  const name = $('name-input').value.trim();
+  if (!name) { alert('名前を入力してください。'); return; }
   $('join-card').classList.add('hidden');
   $('room-list-card').classList.remove('hidden');
   socket.emit('get_rooms');
