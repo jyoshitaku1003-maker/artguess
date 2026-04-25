@@ -316,6 +316,20 @@ function finalizeDisconnect(room, sessionId) {
 
 io.on('connection', (socket) => {
 
+  socket.on('get_rooms', () => {
+    const list = [];
+    for (const room of rooms.values()) {
+      if (room.game.phase !== 'lobby') continue;
+      const host = room.game.players.find(p => p.isHost);
+      list.push({
+        code: room.code,
+        hostName: host?.name ?? '？',
+        playerCount: room.game.players.length,
+      });
+    }
+    socket.emit('room_list', list);
+  });
+
   socket.on('create_room', ({ name, sessionId }) => {
     // 再接続チェック
     const existingRoomCode = sessionId ? sessionRoom.get(sessionId) : null;

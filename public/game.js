@@ -231,11 +231,40 @@ socket.on('error_msg', (msg) => {
 
 $('create-room-btn').addEventListener('click', doCreateRoom);
 $('name-input').addEventListener('keydown', e => { if (e.key === 'Enter') doCreateRoom(); });
-$('join-room-btn').addEventListener('click', doJoinRoom);
-$('room-code-input').addEventListener('keydown', e => { if (e.key === 'Enter') doJoinRoom(); });
-$('room-code-input').addEventListener('input', e => {
-  e.target.value = e.target.value.toUpperCase();
+$('show-rooms-btn').addEventListener('click', showRoomList);
+$('back-to-lobby-btn').addEventListener('click', () => {
+  $('room-list-card').classList.add('hidden');
+  $('join-card').classList.remove('hidden');
 });
+$('refresh-rooms-btn').addEventListener('click', () => socket.emit('get_rooms'));
+
+socket.on('room_list', (list) => {
+  const ul = $('room-list');
+  ul.innerHTML = '';
+  if (list.length === 0) {
+    $('no-rooms-msg').classList.remove('hidden');
+  } else {
+    $('no-rooms-msg').classList.add('hidden');
+    list.forEach(({ code, hostName, playerCount }) => {
+      const li = document.createElement('li');
+      li.className = 'room-item';
+      li.innerHTML =
+        `<div class="room-item-info">
+          <span class="room-item-code">${esc(code)}</span>
+          <span class="room-item-meta">${esc(hostName)} のルーム・${playerCount}人</span>
+        </div>
+        <button class="btn btn-secondary">参加</button>`;
+      li.querySelector('button').addEventListener('click', () => doJoinRoom(code));
+      ul.appendChild(li);
+    });
+  }
+});
+
+function showRoomList() {
+  $('join-card').classList.add('hidden');
+  $('room-list-card').classList.remove('hidden');
+  socket.emit('get_rooms');
+}
 
 function doCreateRoom() {
   const name = $('name-input').value.trim();
@@ -246,14 +275,12 @@ function doCreateRoom() {
   $('lobby-info').classList.remove('hidden');
 }
 
-function doJoinRoom() {
+function doJoinRoom(roomCode) {
   const name = $('name-input').value.trim();
-  const roomCode = $('room-code-input').value.trim().toUpperCase();
   if (!name) { alert('名前を入力してください。'); return; }
-  if (!roomCode) { alert('ルームコードを入力してください。'); return; }
   myName = name;
   socket.emit('join_room', { name, roomCode, sessionId: mySessionId });
-  $('join-card').classList.add('hidden');
+  $('room-list-card').classList.add('hidden');
   $('lobby-info').classList.remove('hidden');
 }
 

@@ -20,10 +20,15 @@
         <input id="name-input" type="text" placeholder="名前を入力（10文字以内）" maxlength="10" autocomplete="off">
         <button id="create-room-btn" class="btn btn-primary btn-block">ルームを作成</button>
         <div class="divider-text">または</div>
-        <div class="join-row">
-          <input id="room-code-input" type="text" placeholder="ルームコード" maxlength="4" autocomplete="off">
-          <button id="join-room-btn" class="btn btn-secondary">参加する</button>
-        </div>
+        <button id="show-rooms-btn" class="btn btn-secondary btn-block">ルームに参加</button>
+      </div>
+
+      <div id="room-list-card" class="card hidden">
+        <button id="back-to-lobby-btn" class="btn btn-tool" style="margin-bottom:12px;">← 戻る</button>
+        <h3 class="section-title">参加可能なルーム</h3>
+        <ul id="room-list"></ul>
+        <p id="no-rooms-msg" class="muted hidden">現在参加できるルームはありません。</p>
+        <button id="refresh-rooms-btn" class="btn btn-tool btn-block" style="margin-top:12px;">更新</button>
       </div>
 
       <div id="lobby-info" class="card hidden">
