@@ -340,12 +340,12 @@ io.on('connection', (socket) => {
     const list = [];
     for (const room of rooms.values()) {
       if (room.game.phase !== 'lobby') continue;
+      if (room.game.players.length >= MAX_PLAYERS) continue;
       const host = room.game.players.find(p => p.isHost);
       list.push({
         code: room.code,
         hostName: host?.name ?? '？',
         playerCount: room.game.players.length,
-        isFull: room.game.players.length >= MAX_PLAYERS,
       });
     }
     socket.emit('room_list', list);
