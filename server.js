@@ -22,17 +22,6 @@ if (openai) {
   console.log('⚠️  OPENAI_API_KEY not set — AI will always answer "わからない"');
 }
 
-const TOPICS = [
-  'ねこ', 'いぬ', 'うさぎ', 'きりん', 'ぞう', 'さかな', 'とり', 'くま', 'うし', 'ぶた',
-  'りんご', 'バナナ', 'いちご', 'すいか', 'ぶどう', 'みかん', 'もも', 'なし', 'めろん',
-  'くるま', 'じてんしゃ', 'でんしゃ', 'ひこうき', 'ふね', 'バス', 'ロケット',
-  'おうち', 'き', 'やま', 'たいよう', 'つき', 'ほし', 'くも', 'かさ', 'ゆき',
-  'えんぴつ', 'ほん', 'めがね', 'くつ', 'ぼうし',
-  'ピザ', 'ハンバーガー', 'ケーキ', 'ラーメン', 'すし', 'おにぎり', 'アイスクリーム',
-  'はな', 'ちょうちょ', 'かめ', 'かえる', 'かに', 'たこ',
-];
-
-const TOPIC_LIST_STR = TOPICS.join('、');
 const WIN_TARGET = 3;
 
 const freshState = () => ({
@@ -116,7 +105,7 @@ async function requestAIGuess(imageData) {
     return;
   }
 
-  console.log(`[AI] Requesting guess (topic: ${game.topic})`);
+  console.log('[AI] Requesting guess...');
 
   try {
     const base64 = imageData.replace(/^data:image\/[^;]+;base64,/, '');
@@ -128,13 +117,11 @@ async function requestAIGuess(imageData) {
         content: [
           {
             type: 'image_url',
-            // high detail for better accuracy on hand-drawn images
             image_url: { url: `data:image/png;base64,${base64}`, detail: 'high' },
           },
           {
             type: 'text',
-            // give the topic list so AI picks from known options (classification vs open-ended)
-            text: `これはお絵かきゲームの手書きイラストです。お題は以下のリストの中から必ず一つです：\n${TOPIC_LIST_STR}\n\nこのイラストは何を描いていますか？上記リストから最も近いものをひらがな（またはカタカナ）で一語のみ答えてください。`,
+            text: 'これはお絵かきゲームで人が手書きしたイラストです。何を描いているか、ひらがなまたはカタカナで一語のみ答えてください。',
           },
         ],
       }],
@@ -244,8 +231,8 @@ io.on('connection', (socket) => {
 
     game.drawerIndex = Math.floor(Math.random() * game.players.length);
     game.players.forEach((p, i) => { p.isDrawer = i === game.drawerIndex; });
-    game.topic = TOPICS[Math.floor(Math.random() * TOPICS.length)];
-    game.phase = 'drawing';
+    game.topic = '';
+    game.phase = 'topic_input';
     game.guesses = {};
     game.drawingData = null;
     game.aiGuess = null;
@@ -253,7 +240,25 @@ io.on('connection', (socket) => {
     io.emit('game_update', publicState());
 
     const drawer = game.players[game.drawerIndex];
-    console.log(`[Game] Started. drawer=${drawer.name} topic=${game.topic}`);
+    console.log(`[Game] Started. drawer=${drawer.name}`);
+    io.to(drawer.id).emit('choose_topic');
+  });
+
+  socket.on('submit_topic', ({ topic }) => {
+    if (game.phase !== 'topic_input') return;
+    const me = game.players.find(p => p.id === socket.id);
+    if (!me?.isDrawer) return;
+
+    const trimmed = String(topic ?? '').trim().slice(0, 20);
+    if (!trimmed) return;
+
+    game.topic = trimmed;
+    game.phase = 'drawing';
+
+    io.emit('game_update', publicState());
+
+    const drawer = game.players[game.drawerIndex];
+    console.log(`[Game] Topic set. drawer=${drawer.name}`);
     io.to(drawer.id).emit('your_topic', game.topic);
   });
 
@@ -265,8 +270,8 @@ io.on('connection', (socket) => {
 
     game.drawerIndex = Math.floor(Math.random() * game.players.length);
     game.players.forEach((p, i) => { p.isDrawer = i === game.drawerIndex; });
-    game.topic = TOPICS[Math.floor(Math.random() * TOPICS.length)];
-    game.phase = 'drawing';
+    game.topic = '';
+    game.phase = 'topic_input';
     game.guesses = {};
     game.drawingData = null;
     game.aiGuess = null;
@@ -274,8 +279,8 @@ io.on('connection', (socket) => {
     io.emit('game_update', publicState());
 
     const drawer = game.players[game.drawerIndex];
-    console.log(`[Game] Next round. drawer=${drawer.name} topic=${game.topic} scores=${JSON.stringify(game.scores)}`);
-    io.to(drawer.id).emit('your_topic', game.topic);
+    console.log(`[Game] Next round. drawer=${drawer.name} scores=${JSON.stringify(game.scores)}`);
+    io.to(drawer.id).emit('choose_topic');
   });
 
   socket.on('draw_stroke', (strokeData) => {
@@ -351,7 +356,7 @@ io.on('connection', (socket) => {
 
     if (isHost) game.players[0].isHost = true;
 
-    if (isDrawer && (game.phase === 'drawing' || game.phase === 'guessing')) {
+    if (isDrawer && (game.phase === 'topic_input' || game.phase === 'drawing' || game.phase === 'guessing')) {
       if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
       const savedPlayers = game.players.map(p => ({ ...p, isDrawer: false }));
       const savedScores  = { ...game.scores };

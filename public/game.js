@@ -189,6 +189,8 @@ function applyRoundBanner(banner, txt, roundWinner) {
 }
 
 socket.on('reset_game', () => {
+  topicInputSetupDone = false;
+  drawingSetupDone = false;
   showScreen('lobby');
   $('play-again-btn').classList.add('hidden');
   $('next-round-btn').classList.add('hidden');
@@ -196,6 +198,8 @@ socket.on('reset_game', () => {
 });
 
 socket.on('game_aborted', (msg) => {
+  topicInputSetupDone = false;
+  drawingSetupDone = false;
   alert(msg);
   showScreen('lobby');
   amDrawer = false;
@@ -237,6 +241,51 @@ function refreshLobby(state) {
     $('start-btn').classList.add('hidden');
     $('waiting-msg').classList.remove('hidden');
   }
+}
+
+// ===== TOPIC INPUT PHASE =====
+
+let topicInputSetupDone = false;
+
+socket.on('game_update', (state) => {
+  if (state.phase === 'topic_input' && !topicInputSetupDone) {
+    topicInputSetupDone = true;
+    showScreen('topic');
+    setupTopicInputScreen(state);
+  }
+  if (state.phase !== 'topic_input') topicInputSetupDone = false;
+});
+
+socket.on('choose_topic', () => {
+  $('topic-input-drawer').classList.remove('hidden');
+  $('topic-input-spectator').classList.add('hidden');
+  $('topic-input-field').value = '';
+  $('topic-submit-btn').disabled = false;
+  $('topic-input-field').focus();
+});
+
+function setupTopicInputScreen(state) {
+  const me = state.players.find(p => p.id === myId);
+  if (me?.isDrawer) {
+    $('topic-input-drawer').classList.remove('hidden');
+    $('topic-input-spectator').classList.add('hidden');
+    $('topic-input-field').value = '';
+    $('topic-submit-btn').disabled = false;
+    $('topic-input-field').focus();
+  } else {
+    $('topic-input-drawer').classList.add('hidden');
+    $('topic-input-spectator').classList.remove('hidden');
+  }
+}
+
+$('topic-submit-btn').addEventListener('click', submitTopic);
+$('topic-input-field').addEventListener('keydown', e => { if (e.key === 'Enter') submitTopic(); });
+
+function submitTopic() {
+  const topic = $('topic-input-field').value.trim();
+  if (!topic) return;
+  socket.emit('submit_topic', { topic });
+  $('topic-submit-btn').disabled = true;
 }
 
 // ===== DRAWING PHASE SETUP =====
