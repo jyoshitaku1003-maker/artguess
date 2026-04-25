@@ -1,6 +1,7 @@
 'use strict';
 
 const socket = io();
+const SESSION_KEY = 'artguessSessionId';
 
 // ---- state ----
 let myId     = null;
@@ -8,6 +9,7 @@ let myName   = null;
 let players  = [];
 let phase    = 'lobby';
 let amDrawer = false;
+let mySessionId = localStorage.getItem(SESSION_KEY) || null;
 
 // ---- canvas drawing ----
 const COLORS = [
@@ -33,7 +35,17 @@ function showScreen(name) {
 
 // ===== SOCKET EVENTS =====
 
-socket.on('connect', () => { myId = socket.id; });
+socket.on('connect', () => {
+  myId = socket.id;
+  if (myName) {
+    socket.emit('join', { name: myName, sessionId: mySessionId });
+  }
+});
+
+socket.on('joined', ({ sessionId }) => {
+  mySessionId = sessionId;
+  localStorage.setItem(SESSION_KEY, sessionId);
+});
 
 socket.on('game_update', (state) => {
   players = state.players;
@@ -43,6 +55,7 @@ socket.on('game_update', (state) => {
 
   if (state.phase === 'lobby' && myName) refreshLobby(state);
   if (state.phase === 'guessing')        updateGuessCount(state);
+  if (state.phase === 'guessing' && state.drawingData) restoreGuessingState(state);
 });
 
 socket.on('your_topic', (topic) => {
@@ -64,15 +77,7 @@ socket.on('canvas_clear', () => {
 
 socket.on('guessing_start', ({ imageData }) => {
   showScreen('guessing');
-
-  const gc = $('guess-canvas');
-  const gCtx = gc.getContext('2d');
-  const img = new Image();
-  img.onload = () => {
-    gCtx.clearRect(0, 0, gc.width, gc.height);
-    gCtx.drawImage(img, 0, 0, gc.width, gc.height);
-  };
-  img.src = imageData;
+  renderGuessCanvas(imageData);
 
   if (amDrawer) {
     $('guess-form').classList.add('hidden');
@@ -216,7 +221,7 @@ function doJoin() {
   const name = $('name-input').value.trim();
   if (!name) return;
   myName = name;
-  socket.emit('join', { name });
+  socket.emit('join', { name, sessionId: mySessionId });
   $('join-card').classList.add('hidden');
   $('lobby-info').classList.remove('hidden');
 }
@@ -459,6 +464,37 @@ function submitGuess() {
 function updateGuessCount(state) {
   const msg = $('guess-count-msg');
   if (msg) msg.textContent = `${state.guessedCount} / ${state.guesserCount} 人が回答済み`;
+}
+
+function restoreGuessingState(state) {
+  const me = state.players.find(p => p.id === myId);
+  if (!me) return;
+
+  showScreen('guessing');
+  renderGuessCanvas(state.drawingData);
+
+  if (me.isDrawer) {
+    $('guess-form').classList.add('hidden');
+    $('guessed-msg').classList.add('hidden');
+    $('drawer-wait-msg').classList.remove('hidden');
+  } else if ($('guessed-msg').classList.contains('hidden')) {
+    $('guess-form').classList.remove('hidden');
+    $('drawer-wait-msg').classList.add('hidden');
+    $('submit-guess-btn').disabled = false;
+  }
+}
+
+function renderGuessCanvas(imageData) {
+  const gc = $('guess-canvas');
+  if (!gc || !imageData) return;
+
+  const gCtx = gc.getContext('2d');
+  const img = new Image();
+  img.onload = () => {
+    gCtx.clearRect(0, 0, gc.width, gc.height);
+    gCtx.drawImage(img, 0, 0, gc.width, gc.height);
+  };
+  img.src = imageData;
 }
 
 // ===== RESULTS =====
