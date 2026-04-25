@@ -12,10 +12,7 @@ let amDrawer = false;
 let mySessionId = localStorage.getItem(SESSION_KEY) || null;
 
 // ---- canvas drawing ----
-const COLORS = [
-  '#111111','#ffffff','#ef4444','#f97316','#eab308',
-  '#22c55e','#3b82f6','#8b5cf6','#ec4899','#92400e',
-];
+const COLORS = ['#111111'];
 
 let isDrawing     = false;
 let currentStroke = [];
