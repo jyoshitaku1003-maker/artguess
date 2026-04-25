@@ -36,10 +36,10 @@ function getAudioContext() {
   return audioCtx;
 }
 
-function unlockAudio() {
+async function unlockAudio() {
   const ctx = getAudioContext();
   if (!ctx) return;
-  if (ctx.state === 'suspended') ctx.resume();
+  if (ctx.state === 'suspended') await ctx.resume();
   audioReady = true;
 }
 
@@ -98,8 +98,8 @@ function playVictorySound(victory) {
   });
 }
 
-window.addEventListener('pointerdown', unlockAudio, { once: true });
-window.addEventListener('keydown', unlockAudio, { once: true });
+window.addEventListener('pointerdown', () => { void unlockAudio(); }, { once: true });
+window.addEventListener('keydown', () => { void unlockAudio(); }, { once: true });
 
 // ---- screen management ----
 function showScreen(name) {
@@ -378,26 +378,31 @@ function showRoomList() {
   socket.emit('get_rooms');
 }
 
-function doCreateRoom() {
+async function doCreateRoom() {
   const name = $('name-input').value.trim();
   if (!name) return;
+  await unlockAudio();
   myName = name;
   socket.emit('create_room', { name, sessionId: mySessionId });
   $('join-card').classList.add('hidden');
   $('lobby-info').classList.remove('hidden');
 }
 
-function doJoinRoom(roomCode) {
+async function doJoinRoom(roomCode) {
   const name = $('name-input').value.trim();
   if (!name) { alert('名前を入力してください。'); return; }
   myName = name;
+  await unlockAudio();
   socket.emit('join_room', { name, roomCode, sessionId: mySessionId });
   $('room-list-card').classList.add('hidden');
   $('lobby-info').classList.remove('hidden');
 }
 
 
-$('start-btn').addEventListener('click', () => { socket.emit('start_game'); });
+$('start-btn').addEventListener('click', async () => {
+  await unlockAudio();
+  socket.emit('start_game');
+});
 
 function refreshLobby(state) {
   const ul = $('player-list');
