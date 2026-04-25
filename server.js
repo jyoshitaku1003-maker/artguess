@@ -120,6 +120,8 @@ async function requestAIGuess(imageData) {
     return;
   }
 
+  console.log('[AI] Requesting guess...');
+
   try {
     const base64 = imageData.replace(/^data:image\/[^;]+;base64,/, '');
     const response = await openai.chat.completions.create({
@@ -143,9 +145,9 @@ async function requestAIGuess(imageData) {
     const raw = response.choices[0].message.content.trim();
     const match = raw.match(/[ぁ-んァ-ン一-龠A-Za-z0-9ー]+/);
     game.aiGuess = match ? match[0] : raw.slice(0, 10);
-    console.log(`[AI] Answer: "${game.aiGuess}"`);
+    console.log(`[AI] Answer: "${game.aiGuess}" (raw: "${raw}")`);
   } catch (error) {
-    console.error('[AI] Error:', error.message);
+    console.error('[AI] Error:', error.status ?? '', error.message, error.code ?? '');
     game.aiGuess = 'わからない';
   }
 
