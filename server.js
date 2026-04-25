@@ -50,6 +50,15 @@ function normalizeAnswer(text) {
     .toLowerCase();
 }
 
+function isCorrect(guess, topic) {
+  const g = normalizeAnswer(guess);
+  const t = normalizeAnswer(topic);
+  if (g === t) return true;
+  // 「グラス」と「ワイングラス」のように一方が他方を含む場合も正解
+  if (g.length >= 2 && t.length >= 2 && (g.includes(t) || t.includes(g))) return true;
+  return false;
+}
+
 function guesserCount() {
   return game.players.filter(p => !p.isDrawer).length;
 }
@@ -130,7 +139,7 @@ async function requestAIGuess(imageData) {
     const raw = resp.choices[0].message.content.trim();
     const match = raw.match(/[ぁ-んァ-ン一-龯]+/);
     game.aiGuess = match ? match[0] : raw.slice(0, 10);
-    console.log(`[AI] Answer: "${game.aiGuess}" (correct: ${normalizeAnswer(game.aiGuess) === normalizeAnswer(game.topic)})`);
+    console.log(`[AI] Answer: "${game.aiGuess}" (correct: ${isCorrect(game.aiGuess, game.topic)})`);
   } catch (err) {
     console.error('[AI] Error:', err.message);
     game.aiGuess = 'わからない';
@@ -152,7 +161,7 @@ function endGuessing() {
   game.phase = 'results';
 
   const humanWin = Object.values(game.guesses).some(g => g.correct);
-  const aiCorrect = normalizeAnswer(game.aiGuess) === normalizeAnswer(game.topic);
+  const aiCorrect = isCorrect(game.aiGuess, game.topic);
 
   let roundWinner;
   if (humanWin && aiCorrect) roundWinner = 'both';
@@ -319,7 +328,7 @@ io.on('connection', (socket) => {
     if (!me || me.isDrawer) return;
     if (game.guesses[socket.id]) return;
 
-    const correct = normalizeAnswer(answer) === normalizeAnswer(game.topic);
+    const correct = isCorrect(answer, game.topic);
     game.guesses[socket.id] = { name: me.name, answer: String(answer).trim(), correct };
 
     io.emit('game_update', publicState());
