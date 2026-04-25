@@ -157,10 +157,51 @@ async function requestAIGuess(imageData) {
   }
 }
 
-function emitResults() {
+async function judgeAnswers(topic, answers) {
+  const keys = Object.keys(answers);
+  if (keys.length === 0) return {};
+
+  const fallback = () => Object.fromEntries(keys.map(k => [k, isCorrect(answers[k], topic)]));
+
+  if (!openai) return fallback();
+
+  const numbered = keys.map((k, i) => `${i + 1}. ${answers[k]}`).join('\n');
+
+  try {
+    const resp = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      max_tokens: 100,
+      response_format: { type: 'json_object' },
+      messages: [{
+        role: 'user',
+        content: `お絵かきゲームのお題は「${topic}」です。以下の回答が正解かどうか判定してください。同じ意味・言い方の違い（例：バンドエイド＝ばんそうこう、グラス＝コップ、えんぴつ＝鉛筆）は正解としてください。\n\n${numbered}\n\n{"1":true,"2":false,...} の形式のJSONのみ返してください。`,
+      }],
+    });
+
+    const raw = JSON.parse(resp.choices[0].message.content);
+    console.log('[Judge]', JSON.stringify(raw));
+    return Object.fromEntries(keys.map((k, i) => [k, raw[String(i + 1)] ?? isCorrect(answers[k], topic)]));
+  } catch (err) {
+    console.error('[Judge] Error:', err.message);
+    return fallback();
+  }
+}
+
+async function emitResults() {
   const drawer = game.players[game.drawerIndex];
+
+  const toJudge = {};
+  for (const [id, g] of Object.entries(game.guesses)) toJudge[id] = g.answer;
+  toJudge['__ai__'] = game.aiGuess;
+
+  const judgments = await judgeAnswers(game.topic, toJudge);
+
+  for (const [id, correct] of Object.entries(judgments)) {
+    if (game.guesses[id]) game.guesses[id].correct = correct;
+  }
+  const aiCorrect = judgments['__ai__'] ?? isCorrect(game.aiGuess, game.topic);
+
   const humanWin = Object.values(game.guesses).some((g) => g.correct);
-  const aiCorrect = isCorrect(game.aiGuess, game.topic);
 
   let roundWinner = 'none';
   if (humanWin && aiCorrect) roundWinner = 'both';
@@ -209,11 +250,11 @@ function emitResults() {
   });
 }
 
-function endGuessing() {
+async function endGuessing() {
   if (game.phase !== 'guessing') return;
   if (game.aiGuess === null) game.aiGuess = 'わからない';
   game.phase = 'results';
-  emitResults();
+  await emitResults().catch(err => console.error('[endGuessing] Error:', err.message));
 }
 
 function resetToLobbyKeepPlayers() {
@@ -418,7 +459,7 @@ io.on('connection', (socket) => {
     game.guesses[socket.id] = {
       name: me.name,
       answer: trimmed,
-      correct: isCorrect(trimmed, game.topic),
+      correct: false, // endGuessing時にAI判定で上書き
     };
 
     io.emit('game_update', publicState());
