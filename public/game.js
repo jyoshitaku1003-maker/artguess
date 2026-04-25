@@ -49,34 +49,47 @@ function getMasterGain() {
   return masterGain;
 }
 
+function warmAudioGraph(ctx, output) {
+  if (!ctx || !output) return;
+
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = 'sine';
+  osc.frequency.value = 440;
+  gain.gain.value = 0.00001;
+  osc.connect(gain);
+  gain.connect(output);
+  osc.start();
+  osc.stop(ctx.currentTime + 0.01);
+}
+
+function primeAudio() {
+  const ctx = getAudioContext();
+  const output = getMasterGain();
+  if (!ctx || !output) return false;
+  audioReady = true;
+  if (ctx.state === 'suspended') void ctx.resume();
+  warmAudioGraph(ctx, output);
+  return true;
+}
+
 async function unlockAudio() {
   const ctx = getAudioContext();
-  if (!ctx) return;
-  if (ctx.state === 'suspended') await ctx.resume();
-
   const output = getMasterGain();
-  if (output) {
-    // Warm the graph once so Safari/mobile browsers reliably emit later tones.
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.type = 'sine';
-    osc.frequency.value = 440;
-    gain.gain.value = 0.00001;
-    osc.connect(gain);
-    gain.connect(output);
-    osc.start();
-    osc.stop(ctx.currentTime + 0.01);
-  }
-
+  if (!ctx || !output) return false;
   audioReady = true;
+  if (ctx.state === 'suspended') await ctx.resume();
+  warmAudioGraph(ctx, output);
+  return true;
 }
 
 function playTone({ freq, duration = 0.12, type = 'sine', volume = 0.04, delay = 0, attack = 0.01, release = 0.08 }) {
   const ctx = getAudioContext();
   const output = getMasterGain();
   if (!ctx || !output || !audioReady) return;
+  if (ctx.state === 'suspended') void ctx.resume();
 
-  const start = ctx.currentTime + delay;
+  const start = ctx.currentTime + Math.max(delay, 0.02);
   const end = start + duration;
   const osc = ctx.createOscillator();
   const gain = ctx.createGain();
@@ -138,8 +151,10 @@ function playVictorySound(victory) {
   });
 }
 
-window.addEventListener('pointerdown', () => { void unlockAudio(); }, { once: true });
-window.addEventListener('keydown', () => { void unlockAudio(); }, { once: true });
+window.addEventListener('pointerdown', primeAudio, { once: true });
+window.addEventListener('touchend', primeAudio, { once: true });
+window.addEventListener('click', primeAudio, { once: true });
+window.addEventListener('keydown', primeAudio, { once: true });
 
 // ---- screen management ----
 function showScreen(name) {
@@ -418,22 +433,24 @@ function showRoomList() {
   socket.emit('get_rooms');
 }
 
-async function doCreateRoom() {
+function doCreateRoom() {
   const name = $('name-input').value.trim();
   if (!name) return;
-  await unlockAudio();
+  primeAudio();
   playJoinSound();
+  void unlockAudio();
   myName = name;
   socket.emit('create_room', { name, sessionId: mySessionId });
   $('join-card').classList.add('hidden');
   $('lobby-info').classList.remove('hidden');
 }
 
-async function doJoinRoom(roomCode) {
+function doJoinRoom(roomCode) {
   const name = $('name-input').value.trim();
   if (!name) { alert('名前を入力してください。'); return; }
-  await unlockAudio();
+  primeAudio();
   playJoinSound();
+  void unlockAudio();
   myName = name;
   socket.emit('join_room', { name, roomCode, sessionId: mySessionId });
   $('room-list-card').classList.add('hidden');
@@ -441,9 +458,10 @@ async function doJoinRoom(roomCode) {
 }
 
 
-$('start-btn').addEventListener('click', async () => {
-  await unlockAudio();
+$('start-btn').addEventListener('click', () => {
+  primeAudio();
   playStartSound();
+  void unlockAudio();
   socket.emit('start_game');
 });
 
