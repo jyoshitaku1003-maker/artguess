@@ -100,8 +100,20 @@ input[type="text"]::placeholder { color: var(--muted); }
 .btn-block { width: 100%; }
 .btn-primary { background: var(--primary); color: #fff; }
 .btn-primary:hover:not(:disabled) { background: #e11d48; }
-#join-btn { background: #2563eb; }
-#join-btn:hover:not(:disabled) { background: #1d4ed8; }
+.btn-secondary { background: #2563eb; color: #fff; }
+.btn-secondary:hover:not(:disabled) { background: #1d4ed8; }
+
+/* ---- lobby room UI ---- */
+.divider-text { text-align: center; color: var(--muted); margin: 14px 0; font-size: 0.85rem; }
+.join-row { display: flex; gap: 8px; }
+.join-row input { flex: 1; text-transform: uppercase; letter-spacing: 0.15em; }
+.room-code-display {
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  background: var(--bg); border-radius: var(--radius);
+  padding: 12px 16px; margin-bottom: 16px;
+  font-size: 1.05rem;
+}
+.room-code-display strong { font-size: 1.4rem; letter-spacing: 0.2em; color: var(--success); }
 .btn-success { background: var(--success); color: #fff; }
 .btn-success:hover:not(:disabled) { background: #16a34a; }
 .btn-tool { padding: 8px 14px; font-size: 0.82rem; background: rgba(255,255,255,0.07); color: var(--text); border: 1px solid var(--border); }

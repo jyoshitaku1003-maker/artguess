@@ -4,6 +4,7 @@ const http = require('http');
 const { Server } = require('socket.io');
 const OpenAI = require('openai');
 const path = require('path');
+const { randomUUID } = require('crypto');
 
 const app = express();
 const server = http.createServer(app);
@@ -25,22 +26,46 @@ const WIN_TARGET = 3;
 const ROUND_SECONDS = 60;
 const RECONNECT_GRACE_MS = 15000;
 
-const freshState = () => ({
-  phase: 'lobby',
-  players: [],
-  drawerIndex: -1,
-  topic: '',
-  drawingData: null,
-  guesses: {},
-  aiGuess: null,
-  timeLeft: ROUND_SECONDS,
-  scores: { human: 0, ai: 0 },
-  isSuddenDeath: false,
-});
+// ---- room management ----
 
-let game = freshState();
-let timerInterval = null;
-const disconnectTimers = new Map();
+const rooms = new Map();       // roomCode -> room
+const playerRoom = new Map();  // socketId -> roomCode
+const sessionRoom = new Map(); // sessionId -> roomCode
+
+function generateRoomCode() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let code;
+  do {
+    code = Array.from({ length: 4 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+  } while (rooms.has(code));
+  return code;
+}
+
+function freshGame() {
+  return {
+    phase: 'lobby',
+    players: [],
+    drawerIndex: -1,
+    topic: '',
+    drawingData: null,
+    guesses: {},
+    aiGuess: null,
+    timeLeft: ROUND_SECONDS,
+    scores: { human: 0, ai: 0 },
+    isSuddenDeath: false,
+  };
+}
+
+function freshRoom(code) {
+  return { code, game: freshGame(), timerInterval: null, disconnectTimers: new Map() };
+}
+
+function getRoom(socketId) {
+  const code = playerRoom.get(socketId);
+  return code ? rooms.get(code) : null;
+}
+
+// ---- helpers ----
 
 function normalizeAnswer(text) {
   if (!text) return '';
@@ -58,70 +83,66 @@ function isCorrect(guess, topic) {
   return false;
 }
 
-function guesserCount() {
-  return game.players.filter((p) => !p.isDrawer).length;
-}
+function guesserCount(game) { return game.players.filter((p) => !p.isDrawer).length; }
+function guessedCount(game) { return Object.keys(game.guesses).length; }
 
-function guessedCount() {
-  return Object.keys(game.guesses).length;
-}
-
-function publicState() {
+function publicState(room) {
+  const { game, code } = room;
   return {
+    roomCode: code,
     phase: game.phase,
     players: game.players.map(({ id, name, isHost, isDrawer }) => ({ id, name, isHost, isDrawer })),
     timeLeft: game.timeLeft,
-    guessedCount: guessedCount(),
-    guesserCount: guesserCount(),
+    guessedCount: guessedCount(game),
+    guesserCount: guesserCount(game),
     scores: { ...game.scores },
     isSuddenDeath: game.isSuddenDeath,
     drawingData: game.drawingData,
   };
 }
 
-function clearDisconnectTimer(sessionId) {
-  const timer = disconnectTimers.get(sessionId);
-  if (!timer) return;
-  clearTimeout(timer);
-  disconnectTimers.delete(sessionId);
+function clearDisconnectTimer(room, sessionId) {
+  const t = room.disconnectTimers.get(sessionId);
+  if (t) { clearTimeout(t); room.disconnectTimers.delete(sessionId); }
 }
 
-function startTimer() {
-  if (timerInterval) clearInterval(timerInterval);
-  game.timeLeft = ROUND_SECONDS;
-  timerInterval = setInterval(() => {
-    game.timeLeft -= 1;
-    io.emit('timer_tick', game.timeLeft);
-    if (game.timeLeft <= 0) {
-      clearInterval(timerInterval);
-      timerInterval = null;
-      endGuessing();
+// ---- timer ----
+
+function startTimer(room) {
+  if (room.timerInterval) clearInterval(room.timerInterval);
+  room.game.timeLeft = ROUND_SECONDS;
+  room.timerInterval = setInterval(() => {
+    room.game.timeLeft -= 1;
+    io.to(room.code).emit('timer_tick', room.game.timeLeft);
+    if (room.game.timeLeft <= 0) {
+      clearInterval(room.timerInterval);
+      room.timerInterval = null;
+      endGuessing(room);
     }
   }, 1000);
 }
 
-function checkEndCondition() {
+function checkEndCondition(room) {
+  const { game } = room;
   if (game.phase !== 'guessing') return;
-  if (guessedCount() >= guesserCount() && game.aiGuess !== null) {
-    if (timerInterval) {
-      clearInterval(timerInterval);
-      timerInterval = null;
-    }
-    endGuessing();
+  if (guessedCount(game) >= guesserCount(game) && game.aiGuess !== null) {
+    if (room.timerInterval) { clearInterval(room.timerInterval); room.timerInterval = null; }
+    endGuessing(room);
   }
 }
 
-async function requestAIGuess(imageData) {
+// ---- AI ----
+
+async function requestAIGuess(room, imageData) {
+  const { game } = room;
   if (!openai) {
-    console.log('[AI] Skipped: no API key');
     game.aiGuess = 'わからない';
-    io.emit('game_update', publicState());
-    checkEndCondition();
+    io.to(room.code).emit('game_update', publicState(room));
+    checkEndCondition(room);
     return;
   }
 
   console.log('[AI] Requesting guess...');
-
   try {
     const base64 = imageData.replace(/^data:image\/[^;]+;base64,/, '');
     const response = await openai.chat.completions.create({
@@ -130,43 +151,33 @@ async function requestAIGuess(imageData) {
       messages: [{
         role: 'user',
         content: [
-          {
-            type: 'image_url',
-            image_url: { url: `data:image/png;base64,${base64}`, detail: 'high' },
-          },
-          {
-            type: 'text',
-            text: 'このイラストが何かを日本語の短い名詞ひとつで答えてください。説明文や言い訳は不要です。',
-          },
+          { type: 'image_url', image_url: { url: `data:image/png;base64,${base64}`, detail: 'high' } },
+          { type: 'text', text: 'このイラストが何かを日本語の短い名詞ひとつで答えてください。説明文や言い訳は不要です。' },
         ],
       }],
     });
-
     const raw = response.choices[0].message.content.trim();
     const match = raw.match(/[ぁ-んァ-ン一-龠A-Za-z0-9ー]+/);
     game.aiGuess = match ? match[0] : raw.slice(0, 10);
     console.log(`[AI] Answer: "${game.aiGuess}" (raw: "${raw}")`);
-  } catch (error) {
-    console.error('[AI] Error:', error.status ?? '', error.message, error.code ?? '');
+  } catch (err) {
+    console.error('[AI] Error:', err.status ?? '', err.message);
     game.aiGuess = 'わからない';
   }
 
   if (game.phase === 'guessing') {
-    io.emit('game_update', publicState());
-    checkEndCondition();
+    io.to(room.code).emit('game_update', publicState(room));
+    checkEndCondition(room);
   }
 }
 
 async function judgeAnswers(topic, answers) {
   const keys = Object.keys(answers);
   if (keys.length === 0) return {};
-
   const fallback = () => Object.fromEntries(keys.map(k => [k, isCorrect(answers[k], topic)]));
-
   if (!openai) return fallback();
 
   const numbered = keys.map((k, i) => `${i + 1}. ${answers[k]}`).join('\n');
-
   try {
     const resp = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
@@ -177,7 +188,6 @@ async function judgeAnswers(topic, answers) {
         content: `お絵かきゲームのお題は「${topic}」です。以下の回答が正解かどうか判定してください。同じ意味・言い方の違い（例：バンドエイド＝ばんそうこう、グラス＝コップ、えんぴつ＝鉛筆）は正解としてください。\n\n${numbered}\n\n{"1":true,"2":false,...} の形式のJSONのみ返してください。`,
       }],
     });
-
     const raw = JSON.parse(resp.choices[0].message.content);
     console.log('[Judge]', JSON.stringify(raw));
     return Object.fromEntries(keys.map((k, i) => [k, raw[String(i + 1)] ?? isCorrect(answers[k], topic)]));
@@ -187,7 +197,8 @@ async function judgeAnswers(topic, answers) {
   }
 }
 
-async function emitResults() {
+async function emitResults(room) {
+  const { game } = room;
   const drawer = game.players[game.drawerIndex];
 
   const toJudge = {};
@@ -195,12 +206,10 @@ async function emitResults() {
   toJudge['__ai__'] = game.aiGuess;
 
   const judgments = await judgeAnswers(game.topic, toJudge);
-
   for (const [id, correct] of Object.entries(judgments)) {
     if (game.guesses[id]) game.guesses[id].correct = correct;
   }
   const aiCorrect = judgments['__ai__'] ?? isCorrect(game.aiGuess, game.topic);
-
   const humanWin = Object.values(game.guesses).some((g) => g.correct);
 
   let roundWinner = 'none';
@@ -209,182 +218,187 @@ async function emitResults() {
   else if (aiCorrect) roundWinner = 'ai';
 
   if (roundWinner === 'human' || roundWinner === 'both') game.scores.human += 1;
-  if (roundWinner === 'ai' || roundWinner === 'both') game.scores.ai += 1;
+  if (roundWinner === 'ai'    || roundWinner === 'both') game.scores.ai += 1;
 
   let gameOver = false;
   let matchWinner = null;
-
   if (game.isSuddenDeath) {
-    if (roundWinner === 'human') {
-      gameOver = true;
-      matchWinner = 'human';
-    } else if (roundWinner === 'ai') {
-      gameOver = true;
-      matchWinner = 'ai';
-    }
+    if (roundWinner === 'human') { gameOver = true; matchWinner = 'human'; }
+    else if (roundWinner === 'ai') { gameOver = true; matchWinner = 'ai'; }
   } else {
-    const humanReached = game.scores.human >= WIN_TARGET;
-    const aiReached = game.scores.ai >= WIN_TARGET;
-    if (humanReached && aiReached) {
-      game.isSuddenDeath = true;
-    } else if (humanReached) {
-      gameOver = true;
-      matchWinner = 'human';
-    } else if (aiReached) {
-      gameOver = true;
-      matchWinner = 'ai';
-    }
+    const hr = game.scores.human >= WIN_TARGET;
+    const ar = game.scores.ai >= WIN_TARGET;
+    if (hr && ar) { game.isSuddenDeath = true; }
+    else if (hr)  { gameOver = true; matchWinner = 'human'; }
+    else if (ar)  { gameOver = true; matchWinner = 'ai'; }
   }
 
-  io.emit('game_results', {
-    topic: game.topic,
-    guesses: game.guesses,
-    aiGuess: game.aiGuess,
-    aiCorrect,
-    roundWinner,
-    scores: { ...game.scores },
-    isSuddenDeath: game.isSuddenDeath,
-    gameOver,
-    matchWinner,
+  io.to(room.code).emit('game_results', {
+    topic: game.topic, guesses: game.guesses, aiGuess: game.aiGuess,
+    aiCorrect, roundWinner, scores: { ...game.scores },
+    isSuddenDeath: game.isSuddenDeath, gameOver, matchWinner,
     drawerName: drawer?.name ?? '',
   });
 }
 
-async function endGuessing() {
-  if (game.phase !== 'guessing') return;
-  if (game.aiGuess === null) game.aiGuess = 'わからない';
-  game.phase = 'results';
-  await emitResults().catch(err => console.error('[endGuessing] Error:', err.message));
+async function endGuessing(room) {
+  if (room.game.phase !== 'guessing') return;
+  if (room.game.aiGuess === null) room.game.aiGuess = 'わからない';
+  room.game.phase = 'results';
+  await emitResults(room).catch(err => console.error('[endGuessing] Error:', err.message));
 }
 
-function resetToLobbyKeepPlayers() {
-  const savedPlayers = game.players.map((p) => ({ ...p, isDrawer: false }));
-  if (timerInterval) {
-    clearInterval(timerInterval);
-    timerInterval = null;
-  }
-  game = freshState();
-  game.players = savedPlayers;
+function resetToLobby(room) {
+  const saved = room.game.players.map((p) => ({ ...p, isDrawer: false }));
+  if (room.timerInterval) { clearInterval(room.timerInterval); room.timerInterval = null; }
+  room.game = freshGame();
+  room.game.players = saved;
 }
 
-function resumePlayer(socket, player) {
-  clearDisconnectTimer(player.sessionId);
+function resumePlayer(socket, room, player) {
+  clearDisconnectTimer(room, player.sessionId);
+  player.id = socket.id;
 
-  socket.emit('joined', { sessionId: player.sessionId });
-  socket.emit('game_update', publicState());
-
-  if (game.phase === 'topic_input' && player.isDrawer) {
-    socket.emit('choose_topic');
+  if (room.game.guesses[socket.id] === undefined) {
+    const oldGuess = Object.entries(room.game.guesses).find(([, g]) => g.sessionId === player.sessionId);
+    if (oldGuess) {
+      room.game.guesses[socket.id] = oldGuess[1];
+      delete room.game.guesses[oldGuess[0]];
+    }
   }
 
-  if (game.phase === 'drawing' && player.isDrawer) {
-    socket.emit('your_topic', game.topic);
-  }
+  socket.join(room.code);
+  playerRoom.set(socket.id, room.code);
 
-  if (game.phase === 'guessing' && game.drawingData) {
-    socket.emit('guessing_start', { imageData: game.drawingData });
-    socket.emit('timer_tick', game.timeLeft);
+  socket.emit('joined', { sessionId: player.sessionId, roomCode: room.code });
+  socket.emit('game_update', publicState(room));
+
+  if (room.game.phase === 'topic_input' && player.isDrawer) socket.emit('choose_topic');
+  if (room.game.phase === 'drawing'     && player.isDrawer) socket.emit('your_topic', room.game.topic);
+  if (room.game.phase === 'guessing'    && room.game.drawingData) {
+    socket.emit('guessing_start', { imageData: room.game.drawingData });
+    socket.emit('timer_tick', room.game.timeLeft);
   }
 }
 
-function finalizeDisconnect(sessionId) {
-  const idx = game.players.findIndex((p) => p.sessionId === sessionId);
+function finalizeDisconnect(room, sessionId) {
+  const idx = room.game.players.findIndex((p) => p.sessionId === sessionId);
   if (idx === -1) return;
 
-  const player = game.players[idx];
-  delete game.guesses[player.id];
-  game.players.splice(idx, 1);
-  clearDisconnectTimer(sessionId);
+  const player = room.game.players[idx];
+  delete room.game.guesses[player.id];
+  room.game.players.splice(idx, 1);
+  clearDisconnectTimer(room, sessionId);
+  sessionRoom.delete(sessionId);
 
-  if (game.players.length === 0) {
-    if (timerInterval) {
-      clearInterval(timerInterval);
-      timerInterval = null;
-    }
-    game = freshState();
+  if (room.game.players.length === 0) {
+    if (room.timerInterval) { clearInterval(room.timerInterval); room.timerInterval = null; }
+    rooms.delete(room.code);
     return;
   }
 
-  if (player.isHost) {
-    game.players[0].isHost = true;
+  if (player.isHost) room.game.players[0].isHost = true;
+
+  if (player.isDrawer && ['topic_input', 'drawing', 'guessing'].includes(room.game.phase)) {
+    const savedScores = { ...room.game.scores };
+    const savedSD = room.game.isSuddenDeath;
+    resetToLobby(room);
+    room.game.scores = savedScores;
+    room.game.isSuddenDeath = savedSD;
+    io.to(room.code).emit('game_aborted', '絵を描く人が退出しました。次のラウンドをお待ちください。');
   }
 
-  if (player.isDrawer && ['topic_input', 'drawing', 'guessing'].includes(game.phase)) {
-    const savedScores = { ...game.scores };
-    const savedSuddenDeath = game.isSuddenDeath;
-    resetToLobbyKeepPlayers();
-    game.scores = savedScores;
-    game.isSuddenDeath = savedSuddenDeath;
-    io.emit('game_aborted', '描き手が切断されたため、このラウンドは中断されました。');
-  }
-
-  io.emit('game_update', publicState());
-  checkEndCondition();
+  io.to(room.code).emit('game_update', publicState(room));
+  checkEndCondition(room);
 }
 
-io.on('connection', (socket) => {
-  socket.emit('game_update', publicState());
+// ---- socket ----
 
-  socket.on('join', ({ name, sessionId }) => {
+io.on('connection', (socket) => {
+
+  socket.on('create_room', ({ name, sessionId }) => {
+    // 再接続チェック
+    const existingRoomCode = sessionId ? sessionRoom.get(sessionId) : null;
+    const existingRoom = existingRoomCode ? rooms.get(existingRoomCode) : null;
+    if (existingRoom) {
+      const player = existingRoom.game.players.find((p) => p.sessionId === sessionId);
+      if (player) { resumePlayer(socket, existingRoom, player); return; }
+    }
+
     const trimmed = String(name ?? '').trim().slice(0, 10);
-    const stableSessionId = String(sessionId ?? '').trim().slice(0, 100) || socket.id;
     if (!trimmed) return;
 
-    const existing = game.players.find((p) => p.sessionId === stableSessionId);
-    if (existing) {
-      const oldId = existing.id;
-      existing.id = socket.id;
-      existing.name = trimmed;
+    const code = generateRoomCode();
+    const room = freshRoom(code);
+    const sid = sessionId || randomUUID();
 
-      if (oldId !== socket.id && game.guesses[oldId]) {
-        game.guesses[socket.id] = game.guesses[oldId];
-        delete game.guesses[oldId];
-      }
+    room.game.players.push({ id: socket.id, sessionId: sid, name: trimmed, isHost: true, isDrawer: false });
+    rooms.set(code, room);
+    socket.join(code);
+    playerRoom.set(socket.id, code);
+    sessionRoom.set(sid, code);
 
-      resumePlayer(socket, existing);
+    socket.emit('joined', { sessionId: sid, roomCode: code });
+    socket.emit('game_update', publicState(room));
+    console.log(`[Room] Created ${code} by ${trimmed}`);
+  });
+
+  socket.on('join_room', ({ name, roomCode, sessionId }) => {
+    const code = String(roomCode ?? '').trim().toUpperCase();
+    const room = rooms.get(code);
+
+    if (!room) {
+      socket.emit('error_msg', 'ルームが見つかりません。コードを確認してください。');
       return;
     }
 
-    if (game.phase !== 'lobby') {
+    // 再接続チェック
+    if (sessionId) {
+      const player = room.game.players.find((p) => p.sessionId === sessionId);
+      if (player) { resumePlayer(socket, room, player); return; }
+    }
+
+    if (room.game.phase !== 'lobby') {
       socket.emit('error_msg', 'ゲームはすでに始まっています。次のゲームをお待ちください。');
       return;
     }
 
-    const isHost = game.players.length === 0;
-    game.players.push({
-      id: socket.id,
-      sessionId: stableSessionId,
-      name: trimmed,
-      isHost,
-      isDrawer: false,
-    });
+    const trimmed = String(name ?? '').trim().slice(0, 10);
+    if (!trimmed) return;
 
-    socket.emit('joined', { sessionId: stableSessionId });
-    io.emit('game_update', publicState());
+    const sid = sessionId || randomUUID();
+    room.game.players.push({ id: socket.id, sessionId: sid, name: trimmed, isHost: false, isDrawer: false });
+    socket.join(code);
+    playerRoom.set(socket.id, code);
+    sessionRoom.set(sid, code);
+
+    socket.emit('joined', { sessionId: sid, roomCode: code });
+    io.to(code).emit('game_update', publicState(room));
+    console.log(`[Room] ${trimmed} joined ${code}`);
   });
 
   socket.on('start_game', () => {
+    const room = getRoom(socket.id);
+    if (!room) return;
+    const { game } = room;
     if (game.phase !== 'lobby') return;
     const me = game.players.find((p) => p.id === socket.id);
     if (!me?.isHost) return;
-    if (game.players.length < 2) {
-      socket.emit('error_msg', 'プレイヤーが2人以上必要です。');
-      return;
-    }
+    if (game.players.length < 2) { socket.emit('error_msg', 'プレイヤーが2人以上必要です。'); return; }
 
     game.drawerIndex = Math.floor(Math.random() * game.players.length);
     game.players.forEach((p, i) => { p.isDrawer = i === game.drawerIndex; });
-    game.topic = '';
-    game.phase = 'topic_input';
-    game.guesses = {};
-    game.drawingData = null;
-    game.aiGuess = null;
+    game.topic = ''; game.phase = 'topic_input';
+    game.guesses = {}; game.drawingData = null; game.aiGuess = null;
 
-    io.emit('game_update', publicState());
+    io.to(room.code).emit('game_update', publicState(room));
     io.to(game.players[game.drawerIndex].id).emit('choose_topic');
   });
 
   socket.on('submit_topic', ({ topic }) => {
+    const room = getRoom(socket.id);
+    if (!room) return;
+    const { game } = room;
     if (game.phase !== 'topic_input') return;
     const me = game.players.find((p) => p.id === socket.id);
     if (!me?.isDrawer) return;
@@ -394,97 +408,95 @@ io.on('connection', (socket) => {
 
     game.topic = trimmed;
     game.phase = 'drawing';
-
-    io.emit('game_update', publicState());
+    io.to(room.code).emit('game_update', publicState(room));
     io.to(me.id).emit('your_topic', game.topic);
   });
 
   socket.on('next_round', () => {
+    const room = getRoom(socket.id);
+    if (!room) return;
+    const { game } = room;
     if (game.phase !== 'results') return;
     const me = game.players.find((p) => p.id === socket.id);
     if (!me?.isHost) return;
 
     game.drawerIndex = Math.floor(Math.random() * game.players.length);
     game.players.forEach((p, i) => { p.isDrawer = i === game.drawerIndex; });
-    game.topic = '';
-    game.phase = 'topic_input';
-    game.guesses = {};
-    game.drawingData = null;
-    game.aiGuess = null;
-    game.timeLeft = ROUND_SECONDS;
+    game.topic = ''; game.phase = 'topic_input';
+    game.guesses = {}; game.drawingData = null; game.aiGuess = null; game.timeLeft = ROUND_SECONDS;
 
-    io.emit('game_update', publicState());
+    io.to(room.code).emit('game_update', publicState(room));
     io.to(game.players[game.drawerIndex].id).emit('choose_topic');
   });
 
   socket.on('draw_stroke', (strokeData) => {
-    if (game.phase !== 'drawing') return;
-    const me = game.players.find((p) => p.id === socket.id);
-    if (!me?.isDrawer) return;
-    socket.broadcast.emit('draw_stroke', strokeData);
+    const room = getRoom(socket.id);
+    if (!room || room.game.phase !== 'drawing') return;
+    if (!room.game.players.find((p) => p.id === socket.id)?.isDrawer) return;
+    socket.to(room.code).emit('draw_stroke', strokeData);
   });
 
   socket.on('canvas_clear', () => {
-    if (game.phase !== 'drawing') return;
-    const me = game.players.find((p) => p.id === socket.id);
-    if (!me?.isDrawer) return;
-    socket.broadcast.emit('canvas_clear');
+    const room = getRoom(socket.id);
+    if (!room || room.game.phase !== 'drawing') return;
+    if (!room.game.players.find((p) => p.id === socket.id)?.isDrawer) return;
+    socket.to(room.code).emit('canvas_clear');
   });
 
   socket.on('submit_drawing', (imageData) => {
-    if (game.phase !== 'drawing') return;
-    const me = game.players.find((p) => p.id === socket.id);
-    if (!me?.isDrawer) return;
+    const room = getRoom(socket.id);
+    if (!room || room.game.phase !== 'drawing') return;
+    if (!room.game.players.find((p) => p.id === socket.id)?.isDrawer) return;
 
-    game.drawingData = imageData;
-    game.phase = 'guessing';
-    game.guesses = {};
+    room.game.drawingData = imageData;
+    room.game.phase = 'guessing';
+    room.game.guesses = {};
 
-    io.emit('guessing_start', { imageData });
-    io.emit('game_update', publicState());
-
-    startTimer();
-    requestAIGuess(imageData);
+    io.to(room.code).emit('guessing_start', { imageData });
+    io.to(room.code).emit('game_update', publicState(room));
+    startTimer(room);
+    requestAIGuess(room, imageData);
   });
 
   socket.on('submit_guess', ({ answer }) => {
-    if (game.phase !== 'guessing') return;
-    const me = game.players.find((p) => p.id === socket.id);
-    if (!me || me.isDrawer) return;
-    if (game.guesses[socket.id]) return;
+    const room = getRoom(socket.id);
+    if (!room || room.game.phase !== 'guessing') return;
+    const me = room.game.players.find((p) => p.id === socket.id);
+    if (!me || me.isDrawer || room.game.guesses[socket.id]) return;
 
     const trimmed = String(answer ?? '').trim();
     if (!trimmed) return;
 
-    game.guesses[socket.id] = {
-      name: me.name,
-      answer: trimmed,
-      correct: false, // endGuessing時にAI判定で上書き
-    };
-
-    io.emit('game_update', publicState());
-    checkEndCondition();
+    room.game.guesses[socket.id] = { name: me.name, answer: trimmed, correct: false };
+    io.to(room.code).emit('game_update', publicState(room));
+    checkEndCondition(room);
   });
 
   socket.on('play_again', () => {
-    if (game.phase !== 'results') return;
-    const me = game.players.find((p) => p.id === socket.id);
+    const room = getRoom(socket.id);
+    if (!room || room.game.phase !== 'results') return;
+    const me = room.game.players.find((p) => p.id === socket.id);
     if (!me?.isHost) return;
 
-    resetToLobbyKeepPlayers();
-    io.emit('game_update', publicState());
-    io.emit('reset_game');
+    resetToLobby(room);
+    io.to(room.code).emit('game_update', publicState(room));
+    io.to(room.code).emit('reset_game');
   });
 
   socket.on('disconnect', () => {
-    const player = game.players.find((p) => p.id === socket.id);
+    const room = getRoom(socket.id);
+    if (!room) return;
+    playerRoom.delete(socket.id);
+
+    const player = room.game.players.find((p) => p.id === socket.id);
     if (!player) return;
 
-    clearDisconnectTimer(player.sessionId);
-    disconnectTimers.set(
+    clearDisconnectTimer(room, player.sessionId);
+    room.disconnectTimers.set(
       player.sessionId,
-      setTimeout(() => finalizeDisconnect(player.sessionId), RECONNECT_GRACE_MS)
+      setTimeout(() => finalizeDisconnect(room, player.sessionId), RECONNECT_GRACE_MS)
     );
+    io.to(room.code).emit('game_update', publicState(room));
   });
 });
 

@@ -1,15 +1,17 @@
 'use strict';
 
 const socket = io();
-const SESSION_KEY = 'artguessSessionId';
+const SESSION_KEY  = 'artguessSessionId';
+const ROOM_KEY     = 'artguessRoomCode';
 
 // ---- state ----
-let myId     = null;
-let myName   = null;
-let players  = [];
-let phase    = 'lobby';
-let amDrawer = false;
+let myId        = null;
+let myName      = null;
+let players     = [];
+let phase       = 'lobby';
+let amDrawer    = false;
 let mySessionId = localStorage.getItem(SESSION_KEY) || null;
+let myRoomCode  = localStorage.getItem(ROOM_KEY)    || null;
 
 // ---- canvas drawing ----
 const COLORS = ['#111111'];
@@ -34,14 +36,21 @@ function showScreen(name) {
 
 socket.on('connect', () => {
   myId = socket.id;
-  if (myName) {
-    socket.emit('join', { name: myName, sessionId: mySessionId });
+  // 再接続：名前・ルームコード・セッションIDが揃っていれば自動復帰
+  if (myName && myRoomCode && mySessionId) {
+    socket.emit('join_room', { name: myName, roomCode: myRoomCode, sessionId: mySessionId });
   }
 });
 
-socket.on('joined', ({ sessionId }) => {
+socket.on('joined', ({ sessionId, roomCode }) => {
   mySessionId = sessionId;
+  myRoomCode  = roomCode;
   localStorage.setItem(SESSION_KEY, sessionId);
+  localStorage.setItem(ROOM_KEY, roomCode);
+
+  // ルームコード表示（ホスト向け）
+  $('room-code-value').textContent = roomCode;
+  $('room-code-display').classList.remove('hidden');
 });
 
 socket.on('game_update', (state) => {
@@ -196,6 +205,8 @@ socket.on('reset_game', () => {
   showScreen('lobby');
   $('play-again-btn').classList.add('hidden');
   $('next-round-btn').classList.add('hidden');
+  $('join-card').classList.add('hidden');
+  $('lobby-info').classList.remove('hidden');
   refreshLobby({ players, phase: 'lobby' });
 });
 
@@ -207,21 +218,52 @@ socket.on('game_aborted', (msg) => {
   amDrawer = false;
 });
 
-socket.on('error_msg', (msg) => { alert(msg); });
+socket.on('error_msg', (msg) => {
+  alert(msg);
+  // 参加失敗時は入力画面へ戻す
+  if (phase === 'lobby') {
+    $('join-card').classList.remove('hidden');
+    $('lobby-info').classList.add('hidden');
+  }
+});
 
 // ===== LOBBY =====
 
-$('join-btn').addEventListener('click', doJoin);
-$('name-input').addEventListener('keydown', e => { if (e.key === 'Enter') doJoin(); });
+$('create-room-btn').addEventListener('click', doCreateRoom);
+$('name-input').addEventListener('keydown', e => { if (e.key === 'Enter') doCreateRoom(); });
+$('join-room-btn').addEventListener('click', doJoinRoom);
+$('room-code-input').addEventListener('keydown', e => { if (e.key === 'Enter') doJoinRoom(); });
+$('room-code-input').addEventListener('input', e => {
+  e.target.value = e.target.value.toUpperCase();
+});
 
-function doJoin() {
+function doCreateRoom() {
   const name = $('name-input').value.trim();
   if (!name) return;
   myName = name;
-  socket.emit('join', { name, sessionId: mySessionId });
+  socket.emit('create_room', { name, sessionId: mySessionId });
   $('join-card').classList.add('hidden');
   $('lobby-info').classList.remove('hidden');
 }
+
+function doJoinRoom() {
+  const name = $('name-input').value.trim();
+  const roomCode = $('room-code-input').value.trim().toUpperCase();
+  if (!name) { alert('名前を入力してください。'); return; }
+  if (!roomCode) { alert('ルームコードを入力してください。'); return; }
+  myName = name;
+  socket.emit('join_room', { name, roomCode, sessionId: mySessionId });
+  $('join-card').classList.add('hidden');
+  $('lobby-info').classList.remove('hidden');
+}
+
+$('copy-code-btn').addEventListener('click', () => {
+  const code = $('room-code-value').textContent;
+  navigator.clipboard.writeText(code).then(() => {
+    $('copy-code-btn').textContent = 'コピー済み！';
+    setTimeout(() => { $('copy-code-btn').textContent = 'コピー'; }, 2000);
+  });
+});
 
 $('start-btn').addEventListener('click', () => { socket.emit('start_game'); });
 

@@ -18,10 +18,19 @@
 
       <div id="join-card" class="card">
         <input id="name-input" type="text" placeholder="名前を入力（10文字以内）" maxlength="10" autocomplete="off">
-        <button id="join-btn" class="btn btn-primary btn-block">参加する</button>
+        <button id="create-room-btn" class="btn btn-primary btn-block">ルームを作成</button>
+        <div class="divider-text">または</div>
+        <div class="join-row">
+          <input id="room-code-input" type="text" placeholder="ルームコード" maxlength="4" autocomplete="off">
+          <button id="join-room-btn" class="btn btn-secondary">参加する</button>
+        </div>
       </div>
 
       <div id="lobby-info" class="card hidden">
+        <div id="room-code-display" class="room-code-display hidden">
+          ルームコード：<strong id="room-code-value"></strong>
+          <button id="copy-code-btn" class="btn btn-tool">コピー</button>
+        </div>
         <h3 class="section-title">参加者</h3>
         <ul id="player-list"></ul>
         <p id="lobby-hint" class="hint">2人以上集まったらホストがスタートできます</p>
