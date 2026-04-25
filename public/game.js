@@ -397,6 +397,7 @@ socket.on('error_msg', (msg) => {
 $('create-room-btn').addEventListener('click', doCreateRoom);
 $('name-input').addEventListener('keydown', e => { if (e.key === 'Enter') doCreateRoom(); });
 $('show-rooms-btn').addEventListener('click', showRoomList);
+$('lobby-back-btn').addEventListener('click', returnToEntryLobby);
 $('back-to-lobby-btn').addEventListener('click', () => {
   $('room-list-card').classList.add('hidden');
   $('join-card').classList.remove('hidden');
@@ -464,6 +465,21 @@ $('start-btn').addEventListener('click', () => {
   void unlockAudio();
   socket.emit('start_game');
 });
+
+function returnToEntryLobby() {
+  socket.emit('leave_room');
+  myRoomCode = null;
+  localStorage.removeItem(ROOM_KEY);
+  showScreen('lobby');
+  $('room-list-card').classList.add('hidden');
+  $('join-card').classList.remove('hidden');
+  $('lobby-info').classList.add('hidden');
+
+  $('leave-room-btn').classList.add('hidden');
+  $('play-again-btn').classList.add('hidden');
+  topicInputSetupDone = false;
+  drawingSetupDone = false;
+}
 
 function refreshLobby(state) {
   const ul = $('player-list');
@@ -740,19 +756,7 @@ function renderGuessCanvas(imageData) {
 
 $('next-round-btn').addEventListener('click', () => { socket.emit('next_round'); });
 $('play-again-btn').addEventListener('click', () => { socket.emit('play_again'); });
-$('leave-room-btn').addEventListener('click', () => {
-  socket.emit('leave_room');
-  myRoomCode = null;
-  localStorage.removeItem(ROOM_KEY);
-  showScreen('lobby');
-  $('join-card').classList.remove('hidden');
-  $('lobby-info').classList.add('hidden');
-
-  $('leave-room-btn').classList.add('hidden');
-  $('play-again-btn').classList.add('hidden');
-  topicInputSetupDone = false;
-  drawingSetupDone = false;
-});
+$('leave-room-btn').addEventListener('click', returnToEntryLobby);
 
 // ===== TIMER RING =====
 

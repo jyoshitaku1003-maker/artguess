@@ -61,7 +61,7 @@ function freshGame() {
 }
 
 function freshRoom(code) {
-  return { code, game: freshGame(), timerInterval: null, disconnectTimers: new Map() };
+  return { code, game: freshGame(), timerInterval: null, disconnectTimers: new Map(), createdBySessionId: null };
 }
 
 function getRoom(socketId) {
@@ -399,6 +399,7 @@ io.on('connection', (socket) => {
     const room = freshRoom(code);
 
     room.game.players.push({ id: socket.id, sessionId: sid, name: trimmed, isHost: true, isDrawer: false });
+    room.createdBySessionId = sid;
     rooms.set(code, room);
     socket.join(code);
     playerRoom.set(socket.id, code);
@@ -547,9 +548,13 @@ io.on('connection', (socket) => {
   socket.on('leave_room', () => {
     const room = getRoom(socket.id);
     if (!room) return;
+    const player = room.game.players.find((p) => p.id === socket.id);
+    if (player && room.game.phase === 'lobby' && player.sessionId === room.createdBySessionId) {
+      createdRoomDates.delete(player.sessionId);
+    }
     playerRoom.delete(socket.id);
     socket.leave(room.code);
-    finalizeDisconnect(room, room.game.players.find(p => p.id === socket.id)?.sessionId);
+    finalizeDisconnect(room, player?.sessionId);
   });
 
   socket.on('play_again', () => {
