@@ -47,10 +47,6 @@ socket.on('joined', ({ sessionId, roomCode }) => {
   myRoomCode  = roomCode;
   localStorage.setItem(SESSION_KEY, sessionId);
   localStorage.setItem(ROOM_KEY, roomCode);
-
-  // ルームコード表示（ホスト向け）
-  $('room-code-value').textContent = roomCode;
-  $('room-code-display').classList.remove('hidden');
 });
 
 socket.on('game_update', (state) => {
@@ -313,13 +309,6 @@ function doJoinRoom(roomCode) {
   $('lobby-info').classList.remove('hidden');
 }
 
-$('copy-code-btn').addEventListener('click', () => {
-  const code = $('room-code-value').textContent;
-  navigator.clipboard.writeText(code).then(() => {
-    $('copy-code-btn').textContent = 'コピー済み！';
-    setTimeout(() => { $('copy-code-btn').textContent = 'コピー'; }, 2000);
-  });
-});
 
 $('start-btn').addEventListener('click', () => { socket.emit('start_game'); });
 
@@ -605,7 +594,7 @@ $('leave-room-btn').addEventListener('click', () => {
   showScreen('lobby');
   $('join-card').classList.remove('hidden');
   $('lobby-info').classList.add('hidden');
-  $('room-code-display').classList.add('hidden');
+
   $('leave-room-btn').classList.add('hidden');
   $('play-again-btn').classList.add('hidden');
   topicInputSetupDone = false;
