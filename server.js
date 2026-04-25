@@ -15,6 +15,13 @@ const openai = process.env.OPENAI_API_KEY
 
 app.use(express.static(path.join(__dirname, 'public')));
 
+// Startup: show API key status clearly in Railway logs
+if (openai) {
+  console.log('✅ OpenAI API key loaded — AI will use GPT-4o vision');
+} else {
+  console.log('⚠️  OPENAI_API_KEY not set — AI will always answer "わからない"');
+}
+
 const TOPICS = [
   'ねこ', 'いぬ', 'うさぎ', 'きりん', 'ぞう', 'さかな', 'とり', 'くま', 'うし', 'ぶた',
   'りんご', 'バナナ', 'いちご', 'すいか', 'ぶどう', 'みかん', 'もも', 'なし', 'めろん',
@@ -25,6 +32,9 @@ const TOPICS = [
   'はな', 'ちょうちょ', 'かめ', 'かえる', 'かに', 'たこ',
 ];
 
+const TOPIC_LIST_STR = TOPICS.join('、');
+const WIN_TARGET = 3;
+
 const freshState = () => ({
   phase: 'lobby',
   players: [],
@@ -34,6 +44,8 @@ const freshState = () => ({
   guesses: {},
   aiGuess: null,
   timeLeft: 60,
+  scores: { human: 0, ai: 0 },
+  isSuddenDeath: false,
 });
 
 let game = freshState();
@@ -64,6 +76,8 @@ function publicState() {
     timeLeft: game.timeLeft,
     guessedCount: guessedCount(),
     guesserCount: guesserCount(),
+    scores: { ...game.scores },
+    isSuddenDeath: game.isSuddenDeath,
   };
 }
 
@@ -95,11 +109,14 @@ function checkEndCondition() {
 
 async function requestAIGuess(imageData) {
   if (!openai) {
+    console.log('[AI] Skipped — no API key');
     game.aiGuess = 'わからない';
     io.emit('game_update', publicState());
     checkEndCondition();
     return;
   }
+
+  console.log(`[AI] Requesting guess (topic: ${game.topic})`);
 
   try {
     const base64 = imageData.replace(/^data:image\/[^;]+;base64,/, '');
@@ -111,11 +128,13 @@ async function requestAIGuess(imageData) {
         content: [
           {
             type: 'image_url',
-            image_url: { url: `data:image/png;base64,${base64}`, detail: 'low' },
+            // high detail for better accuracy on hand-drawn images
+            image_url: { url: `data:image/png;base64,${base64}`, detail: 'high' },
           },
           {
             type: 'text',
-            text: 'これはお絵かきゲームの手書きイラストです。何を描いていますか？ひらがなで一語のみ答えてください（例：ねこ、りんご、くるま）。',
+            // give the topic list so AI picks from known options (classification vs open-ended)
+            text: `これはお絵かきゲームの手書きイラストです。お題は以下のリストの中から必ず一つです：\n${TOPIC_LIST_STR}\n\nこのイラストは何を描いていますか？上記リストから最も近いものをひらがな（またはカタカナ）で一語のみ答えてください。`,
           },
         ],
       }],
@@ -124,8 +143,9 @@ async function requestAIGuess(imageData) {
     const raw = resp.choices[0].message.content.trim();
     const match = raw.match(/[ぁ-んァ-ン一-龯]+/);
     game.aiGuess = match ? match[0] : raw.slice(0, 10);
+    console.log(`[AI] Answer: "${game.aiGuess}" (correct: ${normalizeAnswer(game.aiGuess) === normalizeAnswer(game.topic)})`);
   } catch (err) {
-    console.error('OpenAI error:', err.message);
+    console.error('[AI] Error:', err.message);
     game.aiGuess = 'わからない';
   }
 
@@ -147,20 +167,50 @@ function endGuessing() {
   const humanWin = Object.values(game.guesses).some(g => g.correct);
   const aiCorrect = normalizeAnswer(game.aiGuess) === normalizeAnswer(game.topic);
 
-  let winner;
-  if (humanWin && aiCorrect) winner = 'both';
-  else if (humanWin) winner = 'human';
-  else if (aiCorrect) winner = 'ai';
-  else winner = 'none';
+  let roundWinner;
+  if (humanWin && aiCorrect) roundWinner = 'both';
+  else if (humanWin)          roundWinner = 'human';
+  else if (aiCorrect)         roundWinner = 'ai';
+  else                        roundWinner = 'none';
+
+  // Update cumulative scores
+  if (roundWinner === 'human' || roundWinner === 'both') game.scores.human++;
+  if (roundWinner === 'ai'    || roundWinner === 'both') game.scores.ai++;
+
+  // Determine match result
+  let gameOver = false;
+  let matchWinner = null;
+
+  if (game.isSuddenDeath) {
+    // In sudden death: only a clear single winner ends the match
+    if (roundWinner === 'human') { gameOver = true; matchWinner = 'human'; }
+    else if (roundWinner === 'ai') { gameOver = true; matchWinner = 'ai'; }
+    // 'both' or 'none' → sudden death continues
+  } else {
+    const humanReached = game.scores.human >= WIN_TARGET;
+    const aiReached    = game.scores.ai    >= WIN_TARGET;
+    if (humanReached && aiReached) {
+      game.isSuddenDeath = true; // tied at target → sudden death
+    } else if (humanReached) {
+      gameOver = true; matchWinner = 'human';
+    } else if (aiReached) {
+      gameOver = true; matchWinner = 'ai';
+    }
+  }
 
   const drawer = game.players[game.drawerIndex];
+  console.log(`[Game] Round over. roundWinner=${roundWinner} scores=${JSON.stringify(game.scores)} gameOver=${gameOver} matchWinner=${matchWinner}`);
 
   io.emit('game_results', {
     topic: game.topic,
     guesses: game.guesses,
     aiGuess: game.aiGuess,
     aiCorrect,
-    winner,
+    roundWinner,
+    scores: { ...game.scores },
+    isSuddenDeath: game.isSuddenDeath,
+    gameOver,
+    matchWinner,
     drawerName: drawer?.name ?? '？',
   });
 }
@@ -203,6 +253,28 @@ io.on('connection', (socket) => {
     io.emit('game_update', publicState());
 
     const drawer = game.players[game.drawerIndex];
+    console.log(`[Game] Started. drawer=${drawer.name} topic=${game.topic}`);
+    io.to(drawer.id).emit('your_topic', game.topic);
+  });
+
+  // Host advances to next round (scores preserved)
+  socket.on('next_round', () => {
+    if (game.phase !== 'results') return;
+    const me = game.players.find(p => p.id === socket.id);
+    if (!me?.isHost) return;
+
+    game.drawerIndex = Math.floor(Math.random() * game.players.length);
+    game.players.forEach((p, i) => { p.isDrawer = i === game.drawerIndex; });
+    game.topic = TOPICS[Math.floor(Math.random() * TOPICS.length)];
+    game.phase = 'drawing';
+    game.guesses = {};
+    game.drawingData = null;
+    game.aiGuess = null;
+
+    io.emit('game_update', publicState());
+
+    const drawer = game.players[game.drawerIndex];
+    console.log(`[Game] Next round. drawer=${drawer.name} topic=${game.topic} scores=${JSON.stringify(game.scores)}`);
     io.to(drawer.id).emit('your_topic', game.topic);
   });
 
@@ -249,6 +321,7 @@ io.on('connection', (socket) => {
     checkEndCondition();
   });
 
+  // Full reset — scores go back to 0, return to lobby
   socket.on('play_again', () => {
     if (game.phase !== 'results') return;
     const me = game.players.find(p => p.id === socket.id);
@@ -281,9 +354,13 @@ io.on('connection', (socket) => {
     if (isDrawer && (game.phase === 'drawing' || game.phase === 'guessing')) {
       if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
       const savedPlayers = game.players.map(p => ({ ...p, isDrawer: false }));
+      const savedScores  = { ...game.scores };
+      const savedSD      = game.isSuddenDeath;
       game = freshState();
       game.players = savedPlayers;
-      io.emit('game_aborted', '絵を描く人が退出しました。ロビーに戻ります。');
+      game.scores = savedScores;
+      game.isSuddenDeath = savedSD;
+      io.emit('game_aborted', '絵を描く人が退出しました。次のラウンドをお待ちください。');
     }
 
     io.emit('game_update', publicState());

@@ -15,7 +15,7 @@ const COLORS = [
   '#22c55e','#3b82f6','#8b5cf6','#ec4899','#92400e',
 ];
 
-let isDrawing    = false;
+let isDrawing     = false;
 let currentStroke = [];
 let penColor      = '#111111';
 let brushSize     = 8;
@@ -101,18 +101,41 @@ socket.on('timer_tick', (t) => {
 
 socket.on('game_results', (res) => {
   showScreen('results');
-  const { topic, guesses, aiGuess, aiCorrect, winner, drawerName } = res;
+  const { topic, guesses, aiGuess, aiCorrect, roundWinner,
+          scores, isSuddenDeath, gameOver, matchWinner, drawerName } = res;
 
-  $('result-topic').textContent = topic;
+  // Scores
+  $('score-human').textContent = scores.human;
+  $('score-ai').textContent    = scores.ai;
+
+  // Sudden death banner (show when in SD and match not yet over)
+  $('sudden-death-banner').classList.toggle('hidden', !isSuddenDeath || gameOver);
+
+  // Match winner banner
+  const mwBanner = $('match-winner-banner');
+  const mwText   = $('match-winner-text');
+  mwBanner.classList.add('hidden');
+  mwBanner.className = 'match-winner-banner hidden';
+  if (gameOver && matchWinner) {
+    mwBanner.classList.remove('hidden');
+    if (matchWinner === 'human') {
+      mwBanner.classList.add('mw-human');
+      mwText.textContent = '🎉 人間チームの優勝！';
+    } else {
+      mwBanner.classList.add('mw-ai');
+      mwText.textContent = '🤖 AIの優勝！';
+    }
+  }
+
+  // Round result banner
+  $('result-topic').textContent  = topic;
   $('result-drawer').textContent = `（${drawerName} が描きました）`;
 
-  // AI card
   $('ai-guess-text').textContent = aiGuess || '（回答なし）';
   const aiCard = $('ai-result-card');
   aiCard.classList.toggle('correct-card', aiCorrect);
   aiCard.classList.toggle('wrong-card', !aiCorrect);
 
-  // Human guesses
   const ul = $('human-guesses');
   ul.innerHTML = '';
   const entries = Object.values(guesses);
@@ -130,25 +153,45 @@ socket.on('game_results', (res) => {
     });
   }
 
-  // Winner banner
   const banner = $('winner-banner');
   const txt    = $('winner-text');
   banner.className = 'winner-banner';
-  switch (winner) {
-    case 'human': banner.classList.add('win-human'); txt.textContent = '🎉 人間チームの勝ち！'; break;
-    case 'ai':    banner.classList.add('win-ai');    txt.textContent = '🤖 AIの勝ち！';        break;
-    case 'both':  banner.classList.add('win-both');  txt.textContent = '🤝 引き分け！（両者正解）'; break;
-    case 'none':  banner.classList.add('win-none');  txt.textContent = '😅 誰も正解できませんでした'; break;
+  if (isSuddenDeath && !gameOver) {
+    // Sudden death round where no single winner emerged
+    if (roundWinner === 'both') {
+      banner.classList.add('win-both');
+      txt.textContent = '🤝 両者正解！サドンデス継続';
+    } else if (roundWinner === 'none') {
+      banner.classList.add('win-none');
+      txt.textContent = '😅 両者不正解…サドンデス継続';
+    } else {
+      // single winner — match is over, matchWinner banner handles it
+      applyRoundBanner(banner, txt, roundWinner);
+    }
+  } else {
+    applyRoundBanner(banner, txt, roundWinner);
   }
 
-  // play again (host only)
+  // Host buttons
   const me = players.find(p => p.id === myId);
-  $('play-again-btn').classList.toggle('hidden', !me?.isHost);
+  const isHost = me?.isHost ?? false;
+  $('next-round-btn').classList.toggle('hidden', !isHost || gameOver);
+  $('play-again-btn').classList.toggle('hidden', !isHost || !gameOver);
 });
+
+function applyRoundBanner(banner, txt, roundWinner) {
+  switch (roundWinner) {
+    case 'human': banner.classList.add('win-human'); txt.textContent = '🎉 このラウンドは人間チームの勝ち！'; break;
+    case 'ai':    banner.classList.add('win-ai');    txt.textContent = '🤖 このラウンドはAIの勝ち！';        break;
+    case 'both':  banner.classList.add('win-both');  txt.textContent = '🤝 引き分け！（両者正解）';           break;
+    case 'none':  banner.classList.add('win-none');  txt.textContent = '😅 誰も正解できませんでした';         break;
+  }
+}
 
 socket.on('reset_game', () => {
   showScreen('lobby');
   $('play-again-btn').classList.add('hidden');
+  $('next-round-btn').classList.add('hidden');
   refreshLobby({ players, phase: 'lobby' });
 });
 
@@ -198,7 +241,6 @@ function refreshLobby(state) {
 
 // ===== DRAWING PHASE SETUP =====
 
-// called when game_update arrives with phase === 'drawing'
 let drawingSetupDone = false;
 
 socket.on('game_update', (state) => {
@@ -211,11 +253,9 @@ socket.on('game_update', (state) => {
 });
 
 function setupDrawingScreen(state) {
-  // reset eraser state
   eraserOn = false;
   $('eraser-btn').classList.remove('active');
 
-  // reset submit button in case this is a replay
   const submitBtn = $('submit-drawing-btn');
   submitBtn.disabled = false;
   submitBtn.textContent = '完成！送信する';
@@ -225,9 +265,7 @@ function setupDrawingScreen(state) {
     $('draw-tools').classList.remove('hidden');
     $('spectator-banner').classList.add('hidden');
     buildPalette();
-    // attachDrawEvents replaces the canvas node to shed old listeners
     attachDrawEvents($('draw-canvas'));
-    // fill white on the freshly inserted canvas
     fillWhite($('draw-canvas'));
   } else {
     $('draw-tools').classList.add('hidden');
@@ -257,7 +295,6 @@ function buildPalette() {
 }
 
 function attachDrawEvents(canvas) {
-  // remove old listeners by cloning — avoids double-registering on replay
   const fresh = canvas.cloneNode(true);
   canvas.parentNode.replaceChild(fresh, canvas);
   const c = $('draw-canvas');
@@ -280,8 +317,7 @@ function getXY(canvas, e) {
 
 function startDraw(canvas, e) {
   isDrawing = true;
-  const p = getXY(canvas, e);
-  currentStroke = [p];
+  currentStroke = [getXY(canvas, e)];
 }
 
 function continueDraw(canvas, e) {
@@ -330,7 +366,6 @@ function fillWhite(canvas) {
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 }
 
-// tool buttons
 $('eraser-btn').addEventListener('click', () => {
   eraserOn = !eraserOn;
   $('eraser-btn').classList.toggle('active', eraserOn);
@@ -379,12 +414,13 @@ function updateGuessCount(state) {
 
 // ===== RESULTS =====
 
+$('next-round-btn').addEventListener('click', () => { socket.emit('next_round'); });
 $('play-again-btn').addEventListener('click', () => { socket.emit('play_again'); });
 
 // ===== TIMER RING =====
 
 function setRingProgress(t) {
-  const circumference = 175.9; // 2π × 28
+  const circumference = 175.9;
   const offset = circumference * (1 - t / 60);
   const ring = $('ring-progress');
   if (ring) ring.style.strokeDashoffset = offset;

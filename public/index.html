@@ -13,7 +13,7 @@
     <div class="container">
       <div class="logo">
         <h1>お絵かき<br>当てゲーム</h1>
-        <p class="tagline">人間チーム vs AI</p>
+        <p class="tagline">人間チーム vs AI　先に3問正解で勝ち</p>
       </div>
 
       <div id="join-card" class="card">
@@ -35,22 +35,18 @@
   <div id="screen-drawing" class="screen">
     <div class="drawing-layout">
 
-      <!-- drawer: topic banner -->
       <div id="topic-banner" class="topic-banner hidden">
         お題：<strong id="topic-display"></strong>
       </div>
 
-      <!-- spectator: waiting message -->
       <div id="spectator-banner" class="spectator-banner hidden">
         🎨 絵を描いています…じっくり見ながら待とう！
       </div>
 
-      <!-- canvas -->
       <div class="canvas-wrap">
         <canvas id="draw-canvas" width="600" height="480"></canvas>
       </div>
 
-      <!-- drawer: tools -->
       <div id="draw-tools" class="draw-tools hidden">
         <div class="palette" id="color-palette"></div>
         <div class="tool-row">
@@ -101,6 +97,30 @@
   <div id="screen-results" class="screen">
     <div class="container">
 
+      <!-- match winner (game over) -->
+      <div id="match-winner-banner" class="match-winner-banner hidden">
+        <span id="match-winner-text"></span>
+      </div>
+
+      <!-- sudden death -->
+      <div id="sudden-death-banner" class="sudden-death-banner hidden">
+        ⚡ サドンデス！次のラウンドで決着！
+      </div>
+
+      <!-- scoreboard -->
+      <div class="card scoreboard">
+        <div class="score-team">
+          <span class="score-label">👥 人間チーム</span>
+          <span id="score-human" class="score-num">0</span>
+        </div>
+        <div class="score-sep">/ 3</div>
+        <div class="score-team">
+          <span class="score-label">🤖 AI</span>
+          <span id="score-ai" class="score-num">0</span>
+        </div>
+      </div>
+
+      <!-- round result -->
       <div id="winner-banner" class="winner-banner">
         <span id="winner-text"></span>
       </div>
@@ -122,7 +142,9 @@
         </div>
       </div>
 
-      <button id="play-again-btn" class="btn btn-primary btn-block hidden">もう一度プレイ！</button>
+      <!-- host buttons -->
+      <button id="next-round-btn" class="btn btn-primary btn-block hidden">次のラウンドへ →</button>
+      <button id="play-again-btn" class="btn btn-success btn-block hidden">もう一度（最初から）</button>
     </div>
   </div>
 

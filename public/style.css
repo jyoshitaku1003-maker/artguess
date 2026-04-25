@@ -327,4 +327,45 @@ input[type="range"] {
 .ai-card.correct-card { border-color: #4ade80; }
 .ai-card.wrong-card   { border-color: #f87171; }
 
+/* ---- scoreboard ---- */
+.scoreboard {
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  gap: 8px;
+  text-align: center;
+}
+.score-team { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.score-label { font-size: 0.78rem; color: var(--muted); }
+.score-num { font-size: 2.8rem; font-weight: 900; line-height: 1; }
+.score-sep { font-size: 0.75rem; color: var(--muted); }
+
+/* ---- sudden death ---- */
+.sudden-death-banner {
+  border-radius: var(--radius);
+  padding: 14px;
+  text-align: center;
+  font-weight: 700;
+  font-size: 1.05rem;
+  margin-bottom: 14px;
+  background: linear-gradient(135deg, #b45309, #f59e0b);
+  animation: sd-pulse 1.2s ease-in-out infinite;
+}
+@keyframes sd-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.75; }
+}
+
+/* ---- match winner ---- */
+.match-winner-banner {
+  border-radius: var(--radius);
+  padding: 28px 16px;
+  text-align: center;
+  margin-bottom: 14px;
+  font-size: clamp(1.4rem, 5vw, 2rem);
+  font-weight: 900;
+}
+.mw-human { background: linear-gradient(135deg, #16a34a, #22c55e); }
+.mw-ai    { background: linear-gradient(135deg, #7c3aed, #a855f7); }
+
 .hidden { display: none !important; }
