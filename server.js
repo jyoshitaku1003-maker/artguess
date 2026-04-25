@@ -486,6 +486,14 @@ io.on('connection', (socket) => {
     checkEndCondition(room);
   });
 
+  socket.on('leave_room', () => {
+    const room = getRoom(socket.id);
+    if (!room) return;
+    playerRoom.delete(socket.id);
+    socket.leave(room.code);
+    finalizeDisconnect(room, room.game.players.find(p => p.id === socket.id)?.sessionId);
+  });
+
   socket.on('play_again', () => {
     const room = getRoom(socket.id);
     if (!room || room.game.phase !== 'results') return;

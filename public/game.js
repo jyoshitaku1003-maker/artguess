@@ -183,11 +183,12 @@ socket.on('game_results', (res) => {
     applyRoundBanner(banner, txt, roundWinner);
   }
 
-  // Host buttons
+  // ボタン表示
   const me = players.find(p => p.id === myId);
   const isHost = me?.isHost ?? false;
   $('next-round-btn').classList.toggle('hidden', !isHost || gameOver);
   $('play-again-btn').classList.toggle('hidden', !isHost || !gameOver);
+  $('leave-room-btn').classList.toggle('hidden', !gameOver);
 });
 
 function applyRoundBanner(banner, txt, roundWinner) {
@@ -567,6 +568,19 @@ function renderGuessCanvas(imageData) {
 
 $('next-round-btn').addEventListener('click', () => { socket.emit('next_round'); });
 $('play-again-btn').addEventListener('click', () => { socket.emit('play_again'); });
+$('leave-room-btn').addEventListener('click', () => {
+  socket.emit('leave_room');
+  myRoomCode = null;
+  localStorage.removeItem(ROOM_KEY);
+  showScreen('lobby');
+  $('join-card').classList.remove('hidden');
+  $('lobby-info').classList.add('hidden');
+  $('room-code-display').classList.add('hidden');
+  $('leave-room-btn').classList.add('hidden');
+  $('play-again-btn').classList.add('hidden');
+  topicInputSetupDone = false;
+  drawingSetupDone = false;
+});
 
 // ===== TIMER RING =====
 
