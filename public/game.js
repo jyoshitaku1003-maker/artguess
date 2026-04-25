@@ -215,6 +215,11 @@ function setupDrawingScreen(state) {
   eraserOn = false;
   $('eraser-btn').classList.remove('active');
 
+  // reset submit button in case this is a replay
+  const submitBtn = $('submit-drawing-btn');
+  submitBtn.disabled = false;
+  submitBtn.textContent = '完成！送信する';
+
   const me = state.players.find(p => p.id === myId);
   if (me?.isDrawer) {
     $('draw-tools').classList.remove('hidden');
