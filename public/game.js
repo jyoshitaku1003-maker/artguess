@@ -14,7 +14,9 @@ let mySessionId = localStorage.getItem(SESSION_KEY) || null;
 let myRoomCode  = localStorage.getItem(ROOM_KEY)    || null;
 let audioCtx    = null;
 let audioReady  = false;
+let masterGain  = null;
 let lastPhase   = 'lobby';
+let lastSoundAt = { join: 0, start: 0 };
 
 // ---- canvas drawing ----
 const COLORS = ['#111111'];
@@ -36,16 +38,43 @@ function getAudioContext() {
   return audioCtx;
 }
 
+function getMasterGain() {
+  const ctx = getAudioContext();
+  if (!ctx) return null;
+  if (!masterGain) {
+    masterGain = ctx.createGain();
+    masterGain.gain.value = 0.9;
+    masterGain.connect(ctx.destination);
+  }
+  return masterGain;
+}
+
 async function unlockAudio() {
   const ctx = getAudioContext();
   if (!ctx) return;
   if (ctx.state === 'suspended') await ctx.resume();
+
+  const output = getMasterGain();
+  if (output) {
+    // Warm the graph once so Safari/mobile browsers reliably emit later tones.
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = 440;
+    gain.gain.value = 0.00001;
+    osc.connect(gain);
+    gain.connect(output);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.01);
+  }
+
   audioReady = true;
 }
 
 function playTone({ freq, duration = 0.12, type = 'sine', volume = 0.04, delay = 0, attack = 0.01, release = 0.08 }) {
   const ctx = getAudioContext();
-  if (!ctx || !audioReady) return;
+  const output = getMasterGain();
+  if (!ctx || !output || !audioReady) return;
 
   const start = ctx.currentTime + delay;
   const end = start + duration;
@@ -59,26 +88,37 @@ function playTone({ freq, duration = 0.12, type = 'sine', volume = 0.04, delay =
   gain.gain.exponentialRampToValueAtTime(0.0001, end + release);
 
   osc.connect(gain);
-  gain.connect(ctx.destination);
+  gain.connect(output);
   osc.start(start);
   osc.stop(end + release + 0.01);
 }
 
+function playWithCooldown(kind, cooldownMs, fn) {
+  const now = Date.now();
+  if (now - (lastSoundAt[kind] || 0) < cooldownMs) return;
+  lastSoundAt[kind] = now;
+  fn();
+}
+
 function playJoinSound() {
-  playTone({ freq: 392, duration: 0.08, type: 'triangle', volume: 0.025 });
-  playTone({ freq: 587.33, duration: 0.11, type: 'triangle', volume: 0.03, delay: 0.06 });
+  playWithCooldown('join', 800, () => {
+    playTone({ freq: 392, duration: 0.1, type: 'triangle', volume: 0.08 });
+    playTone({ freq: 587.33, duration: 0.14, type: 'triangle', volume: 0.1, delay: 0.07 });
+  });
 }
 
 function playStartSound() {
-  [261.63, 392, 523.25, 783.99].forEach((freq, index) => {
-    playTone({ freq, duration: 0.12, type: 'sawtooth', volume: 0.028, delay: index * 0.055, attack: 0.005, release: 0.05 });
+  playWithCooldown('start', 1200, () => {
+    [261.63, 392, 523.25, 783.99].forEach((freq, index) => {
+      playTone({ freq, duration: 0.12, type: 'sawtooth', volume: 0.09, delay: index * 0.055, attack: 0.005, release: 0.05 });
+    });
   });
 }
 
 function playCorrectSound() {
-  playTone({ freq: 659.25, duration: 0.09, type: 'triangle', volume: 0.03 });
-  playTone({ freq: 783.99, duration: 0.12, type: 'triangle', volume: 0.034, delay: 0.07 });
-  playTone({ freq: 1046.5, duration: 0.16, type: 'sine', volume: 0.028, delay: 0.13 });
+  playTone({ freq: 659.25, duration: 0.09, type: 'triangle', volume: 0.09 });
+  playTone({ freq: 783.99, duration: 0.12, type: 'triangle', volume: 0.1, delay: 0.07 });
+  playTone({ freq: 1046.5, duration: 0.16, type: 'sine', volume: 0.08, delay: 0.13 });
 }
 
 function playVictorySound(victory) {
@@ -90,7 +130,7 @@ function playVictorySound(victory) {
       freq,
       duration: 0.16,
       type: victory ? 'triangle' : 'sawtooth',
-      volume: victory ? 0.035 : 0.028,
+      volume: victory ? 0.11 : 0.08,
       delay: index * 0.09,
       attack: 0.006,
       release: 0.08,
@@ -382,6 +422,7 @@ async function doCreateRoom() {
   const name = $('name-input').value.trim();
   if (!name) return;
   await unlockAudio();
+  playJoinSound();
   myName = name;
   socket.emit('create_room', { name, sessionId: mySessionId });
   $('join-card').classList.add('hidden');
@@ -391,8 +432,9 @@ async function doCreateRoom() {
 async function doJoinRoom(roomCode) {
   const name = $('name-input').value.trim();
   if (!name) { alert('名前を入力してください。'); return; }
-  myName = name;
   await unlockAudio();
+  playJoinSound();
+  myName = name;
   socket.emit('join_room', { name, roomCode, sessionId: mySessionId });
   $('room-list-card').classList.add('hidden');
   $('lobby-info').classList.remove('hidden');
@@ -401,6 +443,7 @@ async function doJoinRoom(roomCode) {
 
 $('start-btn').addEventListener('click', async () => {
   await unlockAudio();
+  playStartSound();
   socket.emit('start_game');
 });
 
