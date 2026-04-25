@@ -197,14 +197,21 @@ function setupDeveloperHotspot() {
   const hotspot = $('dev-hotspot');
   if (!hotspot) return;
 
-  hotspot.addEventListener('pointerdown', startDevHold);
+  hotspot.addEventListener('pointerdown', (event) => {
+    event.preventDefault();
+    startDevHold();
+  });
   hotspot.addEventListener('pointerup', clearDevHoldTimer);
   hotspot.addEventListener('pointerleave', clearDevHoldTimer);
   hotspot.addEventListener('pointercancel', clearDevHoldTimer);
-  hotspot.addEventListener('touchstart', startDevHold, { passive: true });
+  hotspot.addEventListener('touchstart', (event) => {
+    event.preventDefault();
+    startDevHold();
+  }, { passive: false });
   hotspot.addEventListener('touchend', clearDevHoldTimer);
   hotspot.addEventListener('touchcancel', clearDevHoldTimer);
   hotspot.addEventListener('contextmenu', (event) => event.preventDefault());
+  hotspot.addEventListener('selectstart', (event) => event.preventDefault());
 }
 
 setupDeveloperHotspot();
