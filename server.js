@@ -158,10 +158,15 @@ async function requestAIGuess(room, imageData) {
       }],
     });
     const raw = response.choices[0].message.content.trim();
-    const match = raw.match(/[ぁ-んァ-ン一-龠A-Za-z0-9ー]+/);
-    game.aiGuess = match ? match[0] : raw.slice(0, 10);
-    console.log(`[AI] Answer: "${game.aiGuess}" (raw: "${raw}")`);
-  } catch (err) {
+    const REFUSAL = /申し訳|できません|すみません|不適切|I'm sorry|I cannot|inappropriate/i;
+    if (REFUSAL.test(raw)) {
+      game.aiGuess = '__filtered__';
+      console.log(`[AI] Filtered response: "${raw.slice(0, 40)}"`);
+    } else {
+      const match = raw.match(/[ぁ-んァ-ン一-龠A-Za-z0-9ー]+/);
+      game.aiGuess = match ? match[0] : raw.slice(0, 10);
+      console.log(`[AI] Answer: "${game.aiGuess}" (raw: "${raw}")`);
+    }  } catch (err) {
     console.error('[AI] Error:', err.status ?? '', err.message);
     game.aiGuess = 'わからない';
   }
@@ -210,13 +215,17 @@ async function emitResults(room) {
   for (const [id, correct] of Object.entries(judgments)) {
     if (game.guesses[id]) game.guesses[id].correct = correct;
   }
-  const aiCorrect = judgments['__ai__'] ?? isCorrect(game.aiGuess, game.topic);
+  const aiFiltered = game.aiGuess === '__filtered__';
+  const aiCorrect = !aiFiltered && (judgments['__ai__'] ?? isCorrect(game.aiGuess, game.topic));
   const humanWin = Object.values(game.guesses).some((g) => g.correct);
 
+  // AIがフィルターされた場合は引き分け（両者0点）
   let roundWinner = 'none';
-  if (humanWin && aiCorrect) roundWinner = 'both';
-  else if (humanWin) roundWinner = 'human';
-  else if (aiCorrect) roundWinner = 'ai';
+  if (!aiFiltered) {
+    if (humanWin && aiCorrect) roundWinner = 'both';
+    else if (humanWin)         roundWinner = 'human';
+    else if (aiCorrect)        roundWinner = 'ai';
+  }
 
   if (roundWinner === 'human' || roundWinner === 'both') game.scores.human += 1;
   if (roundWinner === 'ai'    || roundWinner === 'both') game.scores.ai += 1;
@@ -242,8 +251,9 @@ async function emitResults(room) {
   });
 
   io.to(room.code).emit('game_results', {
-    topic: game.topic, guesses: game.guesses, aiGuess: game.aiGuess,
-    aiCorrect, roundWinner, scores: { ...game.scores },
+    topic: game.topic, guesses: game.guesses,
+    aiGuess: aiFiltered ? '（回答できませんでした）' : game.aiGuess,
+    aiCorrect, aiFiltered, roundWinner, scores: { ...game.scores },
     isSuddenDeath: game.isSuddenDeath, gameOver, matchWinner,
     drawerName: drawer?.name ?? '',
     roundHistory: gameOver ? game.roundHistory : null,
