@@ -112,7 +112,7 @@ socket.on('timer_tick', (t) => {
 
 socket.on('game_results', (res) => {
   showScreen('results');
-  const { topic, guesses, aiGuess, aiCorrect, roundWinner,
+  const { topic, guesses, aiGuess, aiCorrect, aiFiltered, roundWinner,
           scores, isSuddenDeath, gameOver, matchWinner, drawerName } = res;
 
   // Scores
@@ -167,7 +167,10 @@ socket.on('game_results', (res) => {
   const banner = $('winner-banner');
   const txt    = $('winner-text');
   banner.className = 'winner-banner';
-  if (isSuddenDeath && !gameOver) {
+  if (aiFiltered) {
+    banner.classList.add('win-none');
+    txt.textContent = '🚫 AIが回答できませんでした（引き分け）';
+  } else if (isSuddenDeath && !gameOver) {
     // Sudden death round where no single winner emerged
     if (roundWinner === 'both') {
       banner.classList.add('win-both');
