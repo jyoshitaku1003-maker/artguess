@@ -12,6 +12,9 @@ let phase       = 'lobby';
 let amDrawer    = false;
 let mySessionId = localStorage.getItem(SESSION_KEY) || null;
 let myRoomCode  = localStorage.getItem(ROOM_KEY)    || null;
+let audioCtx    = null;
+let audioReady  = false;
+let lastPhase   = 'lobby';
 
 // ---- canvas drawing ----
 const COLORS = ['#111111'];
@@ -24,6 +27,79 @@ let eraserOn      = false;
 
 // ---- DOM shortcuts ----
 const $ = id => document.getElementById(id);
+
+// ---- audio ----
+function getAudioContext() {
+  const Ctx = window.AudioContext || window.webkitAudioContext;
+  if (!Ctx) return null;
+  if (!audioCtx) audioCtx = new Ctx();
+  return audioCtx;
+}
+
+function unlockAudio() {
+  const ctx = getAudioContext();
+  if (!ctx) return;
+  if (ctx.state === 'suspended') ctx.resume();
+  audioReady = true;
+}
+
+function playTone({ freq, duration = 0.12, type = 'sine', volume = 0.04, delay = 0, attack = 0.01, release = 0.08 }) {
+  const ctx = getAudioContext();
+  if (!ctx || !audioReady) return;
+
+  const start = ctx.currentTime + delay;
+  const end = start + duration;
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+
+  osc.type = type;
+  osc.frequency.setValueAtTime(freq, start);
+  gain.gain.setValueAtTime(0.0001, start);
+  gain.gain.linearRampToValueAtTime(volume, start + attack);
+  gain.gain.exponentialRampToValueAtTime(0.0001, end + release);
+
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+  osc.start(start);
+  osc.stop(end + release + 0.01);
+}
+
+function playJoinSound() {
+  playTone({ freq: 392, duration: 0.08, type: 'triangle', volume: 0.025 });
+  playTone({ freq: 587.33, duration: 0.11, type: 'triangle', volume: 0.03, delay: 0.06 });
+}
+
+function playStartSound() {
+  [261.63, 392, 523.25, 783.99].forEach((freq, index) => {
+    playTone({ freq, duration: 0.12, type: 'sawtooth', volume: 0.028, delay: index * 0.055, attack: 0.005, release: 0.05 });
+  });
+}
+
+function playCorrectSound() {
+  playTone({ freq: 659.25, duration: 0.09, type: 'triangle', volume: 0.03 });
+  playTone({ freq: 783.99, duration: 0.12, type: 'triangle', volume: 0.034, delay: 0.07 });
+  playTone({ freq: 1046.5, duration: 0.16, type: 'sine', volume: 0.028, delay: 0.13 });
+}
+
+function playVictorySound(victory) {
+  const notes = victory
+    ? [523.25, 659.25, 783.99, 1046.5]
+    : [392, 329.63, 261.63, 196];
+  notes.forEach((freq, index) => {
+    playTone({
+      freq,
+      duration: 0.16,
+      type: victory ? 'triangle' : 'sawtooth',
+      volume: victory ? 0.035 : 0.028,
+      delay: index * 0.09,
+      attack: 0.006,
+      release: 0.08,
+    });
+  });
+}
+
+window.addEventListener('pointerdown', unlockAudio, { once: true });
+window.addEventListener('keydown', unlockAudio, { once: true });
 
 // ---- screen management ----
 function showScreen(name) {
@@ -47,13 +123,20 @@ socket.on('joined', ({ sessionId, roomCode }) => {
   myRoomCode  = roomCode;
   localStorage.setItem(SESSION_KEY, sessionId);
   localStorage.setItem(ROOM_KEY, roomCode);
+  playJoinSound();
 });
 
 socket.on('game_update', (state) => {
+  const prevPhase = phase;
   players = state.players;
   phase   = state.phase;
+  lastPhase = state.phase;
   const me = players.find(p => p.id === myId);
   amDrawer = me?.isDrawer ?? false;
+
+  if (prevPhase === 'lobby' && state.phase === 'topic_input') {
+    playStartSound();
+  }
 
   if (state.phase === 'lobby' && myName) refreshLobby(state);
   if (state.phase === 'guessing')        updateGuessCount(state);
@@ -110,6 +193,10 @@ socket.on('game_results', (res) => {
   showScreen('results');
   const { topic, guesses, aiGuess, aiCorrect, aiFiltered, roundWinner,
           scores, isSuddenDeath, gameOver, matchWinner, drawerName } = res;
+  const myGuess = guesses?.[myId];
+
+  if (myGuess?.correct) playCorrectSound();
+  if (gameOver && matchWinner) playVictorySound(matchWinner === 'human');
 
   // Scores
   $('score-human').textContent = scores.human;
