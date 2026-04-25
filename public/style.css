@@ -394,3 +394,37 @@ input[type="range"] {
 .mw-ai    { background: linear-gradient(135deg, #7c3aed, #a855f7); }
 
 .hidden { display: none !important; }
+
+/* ---- drawings gallery ---- */
+#drawings-gallery { margin-bottom: 20px; }
+#drawings-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: center;
+  margin-top: 12px;
+}
+.drawing-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  width: 160px;
+  flex-shrink: 0;
+}
+.drawing-card img {
+  width: 100%;
+  display: block;
+  background: #fff;
+}
+.drawing-card-info {
+  padding: 6px 8px;
+  font-size: 0.78rem;
+  color: var(--muted);
+  text-align: center;
+}
+.drawing-card-topic {
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--text);
+}

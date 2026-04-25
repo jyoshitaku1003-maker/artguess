@@ -53,6 +53,7 @@ function freshGame() {
     timeLeft: ROUND_SECONDS,
     scores: { human: 0, ai: 0 },
     isSuddenDeath: false,
+    roundHistory: [],
   };
 }
 
@@ -233,11 +234,19 @@ async function emitResults(room) {
     else if (ar)  { gameOver = true; matchWinner = 'ai'; }
   }
 
+  // ラウンド履歴に追加
+  game.roundHistory.push({
+    drawing: game.drawingData,
+    topic: game.topic,
+    drawerName: drawer?.name ?? '？',
+  });
+
   io.to(room.code).emit('game_results', {
     topic: game.topic, guesses: game.guesses, aiGuess: game.aiGuess,
     aiCorrect, roundWinner, scores: { ...game.scores },
     isSuddenDeath: game.isSuddenDeath, gameOver, matchWinner,
     drawerName: drawer?.name ?? '',
+    roundHistory: gameOver ? game.roundHistory : null,
   });
 }
 

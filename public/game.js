@@ -183,6 +183,29 @@ socket.on('game_results', (res) => {
     applyRoundBanner(banner, txt, roundWinner);
   }
 
+  // 絵ギャラリー（ゲーム終了時）
+  const gallery = $('drawings-gallery');
+  if (gameOver && res.roundHistory?.length) {
+    const list = $('drawings-list');
+    list.innerHTML = '';
+    res.roundHistory.forEach(({ drawing, topic, drawerName }) => {
+      const card = document.createElement('div');
+      card.className = 'drawing-card';
+      const img = document.createElement('img');
+      img.src = drawing;
+      img.alt = topic;
+      const info = document.createElement('div');
+      info.className = 'drawing-card-info';
+      info.innerHTML = `<div class="drawing-card-topic">${esc(topic)}</div>${esc(drawerName)}`;
+      card.appendChild(img);
+      card.appendChild(info);
+      list.appendChild(card);
+    });
+    gallery.classList.remove('hidden');
+  } else {
+    gallery.classList.add('hidden');
+  }
+
   // ボタン表示
   const me = players.find(p => p.id === myId);
   const isHost = me?.isHost ?? false;
