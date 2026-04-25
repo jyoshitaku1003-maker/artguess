@@ -25,6 +25,7 @@ if (openai) {
 const WIN_TARGET = 3;
 const ROUND_SECONDS = 60;
 const RECONNECT_GRACE_MS = 15000;
+const MAX_PLAYERS = 6;
 
 // ---- room management ----
 
@@ -344,6 +345,7 @@ io.on('connection', (socket) => {
         code: room.code,
         hostName: host?.name ?? '？',
         playerCount: room.game.players.length,
+        isFull: room.game.players.length >= MAX_PLAYERS,
       });
     }
     socket.emit('room_list', list);
@@ -393,6 +395,11 @@ io.on('connection', (socket) => {
 
     if (room.game.phase !== 'lobby') {
       socket.emit('error_msg', 'ゲームはすでに始まっています。次のゲームをお待ちください。');
+      return;
+    }
+
+    if (room.game.players.length >= MAX_PLAYERS) {
+      socket.emit('error_msg', 'このルームは満員です（最大6人）。');
       return;
     }
 

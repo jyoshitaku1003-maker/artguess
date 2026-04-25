@@ -272,16 +272,16 @@ socket.on('room_list', (list) => {
     $('no-rooms-msg').classList.remove('hidden');
   } else {
     $('no-rooms-msg').classList.add('hidden');
-    list.forEach(({ code, hostName, playerCount }) => {
+    list.forEach(({ code, hostName, playerCount, isFull }) => {
       const li = document.createElement('li');
       li.className = 'room-item';
       li.innerHTML =
         `<div class="room-item-info">
           <span class="room-item-code">${esc(code)}</span>
-          <span class="room-item-meta">${esc(hostName)} のルーム・${playerCount}人</span>
+          <span class="room-item-meta">${esc(hostName)} のルーム・${playerCount}/6人${isFull ? '・満員' : ''}</span>
         </div>
-        <button class="btn btn-secondary">参加</button>`;
-      li.querySelector('button').addEventListener('click', () => doJoinRoom(code));
+        <button class="btn btn-secondary" ${isFull ? 'disabled' : ''}>参加</button>`;
+      if (!isFull) li.querySelector('button').addEventListener('click', () => doJoinRoom(code));
       ul.appendChild(li);
     });
   }
