@@ -27,6 +27,7 @@ const ROUND_SECONDS = 60;
 const RECONNECT_GRACE_MS = 15000;
 const MAX_PLAYERS = 6;
 const ROOM_CREATE_LIMIT_TIMEZONE = 'Asia/Tokyo';
+const DEV_OVERRIDE_PASSWORD = '226';
 
 // ---- room management ----
 
@@ -34,6 +35,7 @@ const rooms = new Map();       // roomCode -> room
 const playerRoom = new Map();  // socketId -> roomCode
 const sessionRoom = new Map(); // sessionId -> roomCode
 const createdRoomDates = new Map(); // sessionId -> YYYY-MM-DD
+const unlimitedCreatorSessions = new Set();
 
 function generateRoomCode() {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -91,6 +93,11 @@ function hasCreatedRoomToday(sessionId) {
 function markRoomCreatedToday(sessionId) {
   if (!sessionId) return;
   createdRoomDates.set(sessionId, getTodayKey());
+}
+
+function hasUnlimitedRoomCreation(sessionId) {
+  if (!sessionId) return false;
+  return unlimitedCreatorSessions.has(sessionId);
 }
 
 // ---- helpers ----
@@ -362,6 +369,13 @@ function finalizeDisconnect(room, sessionId) {
 
 io.on('connection', (socket) => {
 
+  socket.on('enable_dev_mode', ({ password, sessionId }) => {
+    if (String(password ?? '') !== DEV_OVERRIDE_PASSWORD) return;
+    const sid = String(sessionId ?? '').trim();
+    if (!sid) return;
+    unlimitedCreatorSessions.add(sid);
+  });
+
   socket.on('get_rooms', () => {
     const list = [];
     for (const room of rooms.values()) {
@@ -390,7 +404,7 @@ io.on('connection', (socket) => {
     if (!trimmed) return;
 
     const sid = sessionId || randomUUID();
-    if (hasCreatedRoomToday(sid)) {
+    if (!hasUnlimitedRoomCreation(sid) && hasCreatedRoomToday(sid)) {
       socket.emit('error_msg', 'ルーム作成は1日1回までです。明日もう一度お試しください。');
       return;
     }

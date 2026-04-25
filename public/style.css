@@ -49,6 +49,20 @@ body::before {
   z-index: -2;
 }
 
+#dev-hotspot {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 88px;
+  height: 88px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  opacity: 0;
+  z-index: 30;
+  -webkit-tap-highlight-color: transparent;
+}
+
 .matrix-backdrop,
 .matrix-backdrop > div {
   position: fixed;
