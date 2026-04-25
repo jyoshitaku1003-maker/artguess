@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>お絵かき当てゲーム</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- ===== LOBBY ===== -->
+  <div id="screen-lobby" class="screen active">
+    <div class="container">
+      <div class="logo">
+        <h1>お絵かき<br>当てゲーム</h1>
+        <p class="tagline">人間チーム vs AI</p>
+      </div>
+
+      <div id="join-card" class="card">
+        <input id="name-input" type="text" placeholder="名前を入力（10文字以内）" maxlength="10" autocomplete="off">
+        <button id="join-btn" class="btn btn-primary btn-block">参加する</button>
+      </div>
+
+      <div id="lobby-info" class="card hidden">
+        <h3 class="section-title">参加者</h3>
+        <ul id="player-list"></ul>
+        <p id="lobby-hint" class="hint">2人以上集まったらホストがスタートできます</p>
+        <button id="start-btn" class="btn btn-success btn-block hidden">ゲームスタート！</button>
+        <p id="waiting-msg" class="muted hidden">ホストがスタートするのを待っています…</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== DRAWING ===== -->
+  <div id="screen-drawing" class="screen">
+    <div class="drawing-layout">
+
+      <!-- drawer: topic banner -->
+      <div id="topic-banner" class="topic-banner hidden">
+        お題：<strong id="topic-display"></strong>
+      </div>
+
+      <!-- spectator: waiting message -->
+      <div id="spectator-banner" class="spectator-banner hidden">
+        🎨 絵を描いています…じっくり見ながら待とう！
+      </div>
+
+      <!-- canvas -->
+      <div class="canvas-wrap">
+        <canvas id="draw-canvas" width="600" height="480"></canvas>
+      </div>
+
+      <!-- drawer: tools -->
+      <div id="draw-tools" class="draw-tools hidden">
+        <div class="palette" id="color-palette"></div>
+        <div class="tool-row">
+          <span class="tool-label">太さ</span>
+          <input id="brush-size" type="range" min="2" max="28" value="8">
+          <button id="eraser-btn" class="btn btn-tool">消しゴム</button>
+          <button id="clear-btn" class="btn btn-tool btn-danger-soft">全消し</button>
+        </div>
+        <button id="submit-drawing-btn" class="btn btn-success btn-block">完成！送信する</button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ===== GUESSING ===== -->
+  <div id="screen-guessing" class="screen">
+    <div class="container">
+
+      <div class="timer-wrap">
+        <svg class="timer-ring" viewBox="0 0 64 64">
+          <circle class="ring-bg" cx="32" cy="32" r="28"/>
+          <circle id="ring-progress" class="ring-fg" cx="32" cy="32" r="28"
+            stroke-dasharray="175.9" stroke-dashoffset="0"/>
+        </svg>
+        <span id="timer-count">60</span>
+      </div>
+
+      <canvas id="guess-canvas" width="600" height="480"></canvas>
+
+      <div id="guess-form">
+        <input id="guess-input" type="text" placeholder="何の絵でしょう？" maxlength="20" autocomplete="off">
+        <button id="submit-guess-btn" class="btn btn-primary btn-block">回答する</button>
+      </div>
+
+      <div id="guessed-msg" class="guessed-msg hidden">
+        ✅ 回答しました！結果を待っています…
+      </div>
+
+      <div id="drawer-wait-msg" class="guessed-msg hidden">
+        🕐 みんなが回答中です…
+      </div>
+
+      <p id="guess-count-msg" class="hint"></p>
+    </div>
+  </div>
+
+  <!-- ===== RESULTS ===== -->
+  <div id="screen-results" class="screen">
+    <div class="container">
+
+      <div id="winner-banner" class="winner-banner">
+        <span id="winner-text"></span>
+      </div>
+
+      <div class="card topic-reveal">
+        お題は…　<strong id="result-topic"></strong>
+        <span id="result-drawer" class="muted"></span>
+      </div>
+
+      <div class="results-grid">
+        <div class="card">
+          <h3 class="section-title">👥 人間チームの回答</h3>
+          <ul id="human-guesses"></ul>
+          <p id="no-guesses" class="muted hidden">回答なし</p>
+        </div>
+        <div id="ai-result-card" class="card ai-card">
+          <h3 class="section-title">🤖 AIの回答</h3>
+          <p id="ai-guess-text" class="ai-answer"></p>
+        </div>
+      </div>
+
+      <button id="play-again-btn" class="btn btn-primary btn-block hidden">もう一度プレイ！</button>
+    </div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="game.js"></script>
+</body>
+</html>
