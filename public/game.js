@@ -252,6 +252,86 @@ function startDevHold() {
   }, DEV_HOLD_MS);
 }
 
+function initHowtoTerminal() {
+  const linesEl = document.getElementById('howto-lines');
+  if (!linesEl) return;
+
+  const LINES = [
+    { t: '$ artguess.exe',                        pause: 700 },
+    { t: '',                                       pause: 160 },
+    { t: '  ── HOW TO PLAY ─────────────────',    pause: 90  },
+    { t: '',                                       pause: 50  },
+    { t: '  // ひとりで遊ぶ',                      pause: 160 },
+    { t: '  AIがお題を出題する',                   pause: 50  },
+    { t: '  制限時間60秒で絵を描く',               pause: 50  },
+    { t: '  AIが絵を解析して回答',                 pause: 50  },
+    { t: '  連続正解でハイスコア更新！',            pause: 220 },
+    { t: '',                                       pause: 50  },
+    { t: '  // みんなで遊ぶ',                      pause: 160 },
+    { t: '  描き手が3択からお題を選ぶ',             pause: 50  },
+    { t: '  60秒で描いて全員+AIが答える',           pause: 50  },
+    { t: '  人間チーム vs AI // 3本勝負！',         pause: 260 },
+    { t: '',                                       pause: 80  },
+    { t: '> 名前を入力してスタート',               pause: 3200 },
+  ];
+
+  let timer = null;
+  let lineIdx = 0;
+  let charIdx = 0;
+  let activeEl = null;
+  let cursor = makeCursor();
+  linesEl.appendChild(cursor);
+
+  function makeCursor() {
+    const c = document.createElement('span');
+    c.className = 'howto-cursor';
+    return c;
+  }
+
+  function charDelay(ch) {
+    const code = ch.charCodeAt(0);
+    if (code > 0x3000) return 65;
+    if (ch === '─') return 18;
+    if (ch === ' ') return 26;
+    return 38;
+  }
+
+  function tick() {
+    if (lineIdx >= LINES.length) {
+      linesEl.style.transition = 'opacity 0.55s ease';
+      linesEl.style.opacity = '0';
+      timer = setTimeout(() => {
+        linesEl.innerHTML = '';
+        linesEl.style.transition = 'none';
+        linesEl.style.opacity = '1';
+        cursor = makeCursor();
+        linesEl.appendChild(cursor);
+        lineIdx = 0; charIdx = 0; activeEl = null;
+        timer = setTimeout(tick, 320);
+      }, 650);
+      return;
+    }
+
+    const line = LINES[lineIdx];
+    if (charIdx === 0) {
+      activeEl = document.createElement('span');
+      activeEl.className = 'howto-line';
+      linesEl.insertBefore(activeEl, cursor);
+    }
+
+    if (charIdx < line.t.length) {
+      const ch = line.t[charIdx++];
+      activeEl.textContent += ch;
+      timer = setTimeout(tick, charDelay(ch));
+    } else {
+      lineIdx++; charIdx = 0; activeEl = null;
+      timer = setTimeout(tick, line.pause);
+    }
+  }
+
+  tick();
+}
+
 function setupDeveloperHotspot() {
   const hotspot = $('dev-hotspot');
   if (!hotspot) return;
@@ -275,6 +355,7 @@ function setupDeveloperHotspot() {
 
 setupDeveloperHotspot();
 refreshSoloBestLobby();
+initHowtoTerminal();
 
 // ---- screen management ----
 function showScreen(name) {
