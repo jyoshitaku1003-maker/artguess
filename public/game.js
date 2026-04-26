@@ -779,7 +779,6 @@ socket.on('choose_topic', ({ choices }) => {
   buildTopicChoices(choices);
   $('topic-input-drawer').classList.remove('hidden');
   $('topic-input-spectator').classList.add('hidden');
-  $('topic-input-waiting').classList.add('hidden');
 });
 
 function buildTopicChoices(choices) {
@@ -803,11 +802,9 @@ function setupTopicInputScreen(state) {
   if (me?.isDrawer) {
     $('topic-input-drawer').classList.add('hidden');
     $('topic-input-spectator').classList.add('hidden');
-    $('topic-input-waiting').classList.remove('hidden');
   } else {
     $('topic-input-drawer').classList.add('hidden');
     $('topic-input-spectator').classList.remove('hidden');
-    $('topic-input-waiting').classList.add('hidden');
   }
 }
 
