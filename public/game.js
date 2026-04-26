@@ -161,10 +161,8 @@ window.addEventListener('click', primeAudio, { once: true });
 window.addEventListener('keydown', primeAudio, { once: true });
 
 function enableDeveloperUnlimited(password) {
-  devUnlimited = true;
-  devPassword  = password;
+  devPassword = password;
   socket.emit('enable_dev_mode', { password, sessionId: mySessionId });
-  alert('開発者モードを有効にしました。ルーム作成制限は無効です。');
 }
 
 function promptDeveloperMode() {
@@ -172,6 +170,17 @@ function promptDeveloperMode() {
   if (password === null || !password.trim()) return;
   enableDeveloperUnlimited(password.trim());
 }
+
+socket.on('dev_mode_result', (success) => {
+  if (success) {
+    devUnlimited = true;
+    alert('開発者モードを有効にしました。ルーム作成制限は無効です。');
+  } else {
+    devUnlimited = false;
+    devPassword  = null;
+    alert('パスワードが違います。');
+  }
+});
 
 function clearDevHoldTimer() {
   if (!devHoldTimer) return;

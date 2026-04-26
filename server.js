@@ -370,10 +370,14 @@ function finalizeDisconnect(room, sessionId) {
 io.on('connection', (socket) => {
 
   socket.on('enable_dev_mode', ({ password, sessionId }) => {
-    if (!DEV_OVERRIDE_PASSWORD || String(password ?? '') !== DEV_OVERRIDE_PASSWORD) return;
+    if (!DEV_OVERRIDE_PASSWORD || String(password ?? '') !== DEV_OVERRIDE_PASSWORD) {
+      socket.emit('dev_mode_result', false);
+      return;
+    }
     const sid = String(sessionId ?? '').trim();
-    if (!sid) return;
+    if (!sid) { socket.emit('dev_mode_result', false); return; }
     unlimitedCreatorSessions.add(sid);
+    socket.emit('dev_mode_result', true);
   });
 
   socket.on('get_rooms', () => {
