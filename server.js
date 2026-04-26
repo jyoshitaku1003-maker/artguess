@@ -44,8 +44,10 @@ const AI_COOLDOWN_MS = 12000; // ソケットごとのAI呼び出し最小間隔
 const rooms = new Map();       // roomCode -> room
 const playerRoom = new Map();  // socketId -> roomCode
 const sessionRoom = new Map(); // sessionId -> roomCode
-const createdRoomDates = new Map(); // sessionId -> YYYY-MM-DD
-const soloPlayedDates  = new Map(); // sessionId -> YYYY-MM-DD
+const createdRoomDates   = new Map(); // sessionId -> YYYY-MM-DD
+const createdRoomDatesByIP = new Map(); // IP -> YYYY-MM-DD
+const soloPlayedDates    = new Map(); // sessionId -> YYYY-MM-DD
+const soloPlayedDatesByIP  = new Map(); // IP -> YYYY-MM-DD
 const soloCurrentTopics = new Map(); // socketId -> 現在のお題
 const aiLastCallTime    = new Map(); // socketId -> 最終AI呼び出し時刻
 const unlimitedCreatorSessions = new Set();
@@ -100,14 +102,22 @@ function getTodayKey() {
   return `${year}-${month}-${day}`;
 }
 
-function hasCreatedRoomToday(sessionId) {
-  if (!sessionId) return false;
-  return createdRoomDates.get(sessionId) === getTodayKey();
+function getClientIP(socket) {
+  const fwd = socket.handshake.headers['x-forwarded-for'];
+  if (fwd) return fwd.split(',')[0].trim();
+  return socket.handshake.address;
 }
 
-function markRoomCreatedToday(sessionId) {
-  if (!sessionId) return;
-  createdRoomDates.set(sessionId, getTodayKey());
+function hasCreatedRoomToday(sessionId, ip) {
+  if (!sessionId && !ip) return false;
+  const today = getTodayKey();
+  return createdRoomDates.get(sessionId) === today || (ip && createdRoomDatesByIP.get(ip) === today);
+}
+
+function markRoomCreatedToday(sessionId, ip) {
+  const today = getTodayKey();
+  if (sessionId) createdRoomDates.set(sessionId, today);
+  if (ip) createdRoomDatesByIP.set(ip, today);
 }
 
 function hasUnlimitedRoomCreation(sessionId) {
@@ -115,14 +125,16 @@ function hasUnlimitedRoomCreation(sessionId) {
   return unlimitedCreatorSessions.has(sessionId);
 }
 
-function hasSoloPlayedToday(sessionId) {
-  if (!sessionId) return false;
-  return soloPlayedDates.get(sessionId) === getTodayKey();
+function hasSoloPlayedToday(sessionId, ip) {
+  if (!sessionId && !ip) return false;
+  const today = getTodayKey();
+  return soloPlayedDates.get(sessionId) === today || (ip && soloPlayedDatesByIP.get(ip) === today);
 }
 
-function markSoloPlayedToday(sessionId) {
-  if (!sessionId) return;
-  soloPlayedDates.set(sessionId, getTodayKey());
+function markSoloPlayedToday(sessionId, ip) {
+  const today = getTodayKey();
+  if (sessionId) soloPlayedDates.set(sessionId, today);
+  if (ip) soloPlayedDatesByIP.set(ip, today);
 }
 
 // ---- helpers ----
@@ -521,7 +533,8 @@ io.on('connection', (socket) => {
     if (!trimmed) return;
 
     const sid = sessionId || randomUUID();
-    if (!hasUnlimitedRoomCreation(sid) && hasCreatedRoomToday(sid)) {
+    const ip = getClientIP(socket);
+    if (!hasUnlimitedRoomCreation(sid) && hasCreatedRoomToday(sid, ip)) {
       socket.emit('error_msg', 'ルーム作成は1日1回までです。明日もう一度お試しください。');
       return;
     }
@@ -535,7 +548,7 @@ io.on('connection', (socket) => {
     socket.join(code);
     playerRoom.set(socket.id, code);
     sessionRoom.set(sid, code);
-    markRoomCreatedToday(sid);
+    markRoomCreatedToday(sid, ip);
 
     socket.emit('joined', { sessionId: sid, roomCode: code });
     socket.emit('game_update', publicState(room));
@@ -693,6 +706,7 @@ io.on('connection', (socket) => {
     const player = room.game.players.find((p) => p.id === socket.id);
     if (player && room.game.phase === 'lobby' && player.sessionId === room.createdBySessionId) {
       createdRoomDates.delete(player.sessionId);
+      createdRoomDatesByIP.delete(getClientIP(socket));
     }
     playerRoom.delete(socket.id);
     socket.leave(room.code);
@@ -712,14 +726,14 @@ io.on('connection', (socket) => {
 
   socket.on('solo_session_start', ({ sessionId }) => {
     const sid = String(sessionId ?? '').trim();
-    if (!sid) { socket.emit('solo_session_result', false); return; }
-    if (!hasUnlimitedRoomCreation(sid) && hasSoloPlayedToday(sid)) {
+    const ip = getClientIP(socket);
+    if (!hasUnlimitedRoomCreation(sid) && hasSoloPlayedToday(sid, ip)) {
       socket.emit('solo_session_result', false);
       return;
     }
-    markSoloPlayedToday(sid);
+    markSoloPlayedToday(sid, ip);
     socket.emit('solo_session_result', true);
-    console.log(`[Solo] Session started: ${sid}`);
+    console.log(`[Solo] Session started: ${sid} (${ip})`);
   });
 
   socket.on('solo_start', async () => {
