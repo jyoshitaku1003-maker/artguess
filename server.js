@@ -412,7 +412,7 @@ async function generateTopicChoices(usedTopics = []) {
       response_format: { type: 'json_object' },
       messages: [{
         role: 'user',
-        content: `お絵かきゲームのお題を3つ考えてください。条件：日本語の名詞で1〜8文字、絵に描きやすいもの（動物・食べ物・乗り物・日用品・自然・場所など）、3つは難易度が異なるようにしてください。{"topics":["お題1","お題2","お題3"]}の形式でJSONのみ返してください。${exclusion}`,
+        content: `お絵かきゲームのお題を3つ考えてください。条件：日本語の名詞で1〜8文字、絵として描けるもの、3つとも難しめにしてください（例：身近でないもの、抽象的な概念に近いもの、複雑な形のもの、あまり見慣れないものなど）。簡単すぎるものや頻出すぎるものは避けてください。{"topics":["お題1","お題2","お題3"]}の形式でJSONのみ返してください。${exclusion}`,
       }],
     });
     const raw = JSON.parse(resp.choices[0].message.content);
