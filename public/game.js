@@ -15,7 +15,6 @@ let mySessionId = localStorage.getItem(SESSION_KEY) || null;
 let myRoomCode  = localStorage.getItem(ROOM_KEY)    || null;
 let devUnlimited = false;
 let devPassword  = null;
-let myAvatarId   = 0;
 let audioCtx    = null;
 let audioReady  = false;
 let masterGain  = null;
@@ -530,38 +529,6 @@ function showRoomList() {
   socket.emit('get_rooms');
 }
 
-// ---- avatar helpers ----
-const AVATAR_COUNT = 10;
-const AVATAR_COLS  = 5;
-
-function avatarBgStyle(id, size) {
-  const col = (id ?? 0) % AVATAR_COLS;
-  const row = Math.floor((id ?? 0) / AVATAR_COLS);
-  const xPct = col * 100 / (AVATAR_COLS - 1);
-  const yPct = row * 100;
-  return `background-image:url('/avatars.png');background-size:${AVATAR_COLS * 100}% 200%;background-position:${xPct}% ${yPct}%;background-repeat:no-repeat;`;
-}
-
-function buildAvatarPicker() {
-  const picker = $('avatar-picker');
-  if (!picker) return;
-  picker.innerHTML = '';
-  for (let i = 0; i < AVATAR_COUNT; i++) {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'avatar-opt' + (i === myAvatarId ? ' selected' : '');
-    btn.setAttribute('style', avatarBgStyle(i, 52));
-    btn.addEventListener('click', () => {
-      myAvatarId = i;
-      picker.querySelectorAll('.avatar-opt').forEach(b => b.classList.remove('selected'));
-      btn.classList.add('selected');
-    });
-    picker.appendChild(btn);
-  }
-}
-
-buildAvatarPicker();
-
 function doCreateRoom() {
   const name = $('name-input').value.trim();
   if (!name) return;
@@ -569,7 +536,7 @@ function doCreateRoom() {
   playJoinSound();
   void unlockAudio();
   myName = name;
-  socket.emit('create_room', { name, sessionId: mySessionId, avatarId: myAvatarId });
+  socket.emit('create_room', { name, sessionId: mySessionId });
   $('join-card').classList.add('hidden');
   $('lobby-info').classList.remove('hidden');
 }
@@ -581,7 +548,7 @@ function doJoinRoom(roomCode) {
   playJoinSound();
   void unlockAudio();
   myName = name;
-  socket.emit('join_room', { name, roomCode, sessionId: mySessionId, avatarId: myAvatarId });
+  socket.emit('join_room', { name, roomCode, sessionId: mySessionId });
   $('room-list-card').classList.add('hidden');
   $('lobby-info').classList.remove('hidden');
 }
@@ -616,13 +583,7 @@ function refreshLobby(state) {
   if (countEl) countEl.textContent = `${state.players.length} / 6人`;
   state.players.forEach(p => {
     const li = document.createElement('li');
-    const av = document.createElement('span');
-    av.className = 'avatar-mini';
-    av.setAttribute('style', avatarBgStyle(p.avatarId, 28));
-    const nm = document.createElement('span');
-    nm.textContent = p.name + (p.isHost ? ' 👑' : '');
-    li.appendChild(av);
-    li.appendChild(nm);
+    li.textContent = p.name + (p.isHost ? ' 👑' : '');
     if (p.id === myId) li.classList.add('me');
     ul.appendChild(li);
   });
