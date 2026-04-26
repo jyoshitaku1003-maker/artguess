@@ -289,13 +289,13 @@ async function emitResults(room) {
   // AIがフィルターされた場合は引き分け（両者0点）
   let roundWinner = 'none';
   if (!aiFiltered) {
-    if (humanWin && aiCorrect) roundWinner = 'both';
+    if (humanWin && aiCorrect) roundWinner = 'ai';   // 両者正解はAIのポイント
     else if (humanWin)         roundWinner = 'human';
     else if (aiCorrect)        roundWinner = 'ai';
   }
 
-  if (roundWinner === 'human' || roundWinner === 'both') game.scores.human += 1;
-  if (roundWinner === 'ai'    || roundWinner === 'both') game.scores.ai += 1;
+  if (roundWinner === 'human') game.scores.human += 1;
+  if (roundWinner === 'ai')    game.scores.ai += 1;
 
   let gameOver = false;
   let matchWinner = null;
@@ -320,7 +320,7 @@ async function emitResults(room) {
   io.to(room.code).emit('game_results', {
     topic: game.topic, guesses: game.guesses,
     aiGuess: aiFiltered ? '（回答できませんでした）' : game.aiGuess,
-    aiCorrect, aiFiltered, roundWinner, scores: { ...game.scores },
+    aiCorrect, aiFiltered, humanWin, roundWinner, scores: { ...game.scores },
     isSuddenDeath: game.isSuddenDeath, gameOver, matchWinner,
     drawerName: drawer?.name ?? '',
     roundHistory: gameOver ? game.roundHistory : null,

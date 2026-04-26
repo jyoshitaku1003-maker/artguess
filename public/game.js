@@ -368,7 +368,7 @@ socket.on('timer_tick', (t) => {
 
 socket.on('game_results', (res) => {
   showScreen('results');
-  const { topic, guesses, aiGuess, aiCorrect, aiFiltered, roundWinner,
+  const { topic, guesses, aiGuess, aiCorrect, aiFiltered, humanWin, roundWinner,
           scores, isSuddenDeath, gameOver, matchWinner, drawerName } = res;
   const myGuess = guesses?.[myId];
 
@@ -429,21 +429,16 @@ socket.on('game_results', (res) => {
   banner.className = 'winner-banner';
   if (aiFiltered) {
     banner.classList.add('win-none');
-    txt.textContent = '🚫 AIが回答できませんでした（引き分け）';
+    txt.textContent = '🚫 AIが回答できませんでした';
   } else if (isSuddenDeath && !gameOver) {
-    // Sudden death round where no single winner emerged
-    if (roundWinner === 'both') {
-      banner.classList.add('win-both');
-      txt.textContent = '🤝 両者正解！サドンデス継続';
-    } else if (roundWinner === 'none') {
+    if (roundWinner === 'none') {
       banner.classList.add('win-none');
       txt.textContent = '😅 両者不正解…サドンデス継続';
     } else {
-      // single winner — match is over, matchWinner banner handles it
-      applyRoundBanner(banner, txt, roundWinner);
+      applyRoundBanner(banner, txt, roundWinner, humanWin);
     }
   } else {
-    applyRoundBanner(banner, txt, roundWinner);
+    applyRoundBanner(banner, txt, roundWinner, humanWin);
   }
 
   // 絵ギャラリー（ゲーム終了時）
@@ -477,11 +472,10 @@ socket.on('game_results', (res) => {
   $('leave-room-btn').classList.toggle('hidden', !gameOver);
 });
 
-function applyRoundBanner(banner, txt, roundWinner) {
+function applyRoundBanner(banner, txt, roundWinner, humanWin) {
   switch (roundWinner) {
     case 'human': banner.classList.add('win-human'); txt.textContent = '🎉 このラウンドは人間チームの勝ち！'; break;
-    case 'ai':    banner.classList.add('win-ai');    txt.textContent = '🤖 このラウンドはAIの勝ち！';        break;
-    case 'both':  banner.classList.add('win-both');  txt.textContent = '🤝 引き分け！（両者正解）';           break;
+    case 'ai':    banner.classList.add('win-ai');    txt.textContent = humanWin ? '🤖 両者正解！AIのポイント' : '🤖 このラウンドはAIの勝ち！'; break;
     case 'none':  banner.classList.add('win-none');  txt.textContent = '😅 誰も正解できませんでした';         break;
   }
 }
