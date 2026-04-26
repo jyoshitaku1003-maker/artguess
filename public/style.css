@@ -841,6 +841,54 @@ input[type="range"] {
   letter-spacing: 0.08em;
 }
 
+#screen-results .match-winner-banner,
+#screen-results .winner-banner,
+#screen-results .topic-reveal,
+#screen-results .results-grid {
+  display: none;
+}
+
+.results-terminal {
+  margin-bottom: 18px;
+}
+
+.results-terminal-lines {
+  height: auto;
+  min-height: 15rem;
+  max-height: 24rem;
+  overflow-y: auto;
+  white-space: normal;
+}
+
+.result-line {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.result-line.result-spacer {
+  min-height: 0.8rem;
+}
+
+.result-line.result-dim {
+  color: rgba(141, 255, 181, 0.66);
+}
+
+.result-line.result-topic-line {
+  color: #d7ff87;
+}
+
+.result-line.result-correct {
+  color: #8dffb5;
+}
+
+.result-line.result-wrong {
+  color: #ff9faf;
+}
+
+.result-line.result-ai {
+  color: #8ed7ff;
+}
+
 .match-winner-banner {
   padding: 30px 20px;
   margin-bottom: 16px;

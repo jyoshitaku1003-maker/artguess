@@ -181,6 +181,77 @@ function playVictorySound(victory) {
   });
 }
 
+function getWinnerLabel({ aiFiltered, roundWinner, humanWin, gameOver, matchWinner }) {
+  if (gameOver && matchWinner) {
+    return matchWinner === 'human' ? '人間チーム' : 'AI';
+  }
+  if (aiFiltered) return '判定なし';
+  switch (roundWinner) {
+    case 'human': return '人間チーム';
+    case 'ai': return humanWin ? 'AI（両者正解）' : 'AI';
+    case 'both': return '引き分け';
+    case 'none': return '勝者なし';
+    default: return '不明';
+  }
+}
+
+function getAiReasonText({ aiFiltered, aiCorrect, aiGuess, topic }) {
+  if (aiFiltered) return 'セーフティフィルターにより回答が無効化されました';
+  if (!aiGuess) return 'AIの回答が取得できませんでした';
+  if (aiCorrect) return `お題「${topic}」と一致判定になりました`;
+  return `「${aiGuess}」と予想しましたが、お題「${topic}」とは一致しませんでした`;
+}
+
+function appendResultTerminalLine(linesEl, text, className = '') {
+  const line = document.createElement('div');
+  line.className = `howto-line result-line${className ? ` ${className}` : ''}`;
+  line.textContent = text;
+  linesEl.appendChild(line);
+}
+
+function renderResultsTerminal(res) {
+  const linesEl = $('results-terminal-lines');
+  if (!linesEl) return;
+
+  const {
+    topic, guesses, aiGuess, aiCorrect, aiFiltered, humanWin,
+    roundWinner, gameOver, matchWinner,
+  } = res;
+
+  linesEl.innerHTML = '';
+
+  const entries = Object.values(guesses || {});
+  if (entries.length === 0) {
+    appendResultTerminalLine(linesEl, '> HUMAN_01 :: 回答なし', ' result-dim');
+  } else {
+    entries.forEach((guess, index) => {
+      const status = guess.correct ? '[CORRECT]' : '[MISS]';
+      appendResultTerminalLine(
+        linesEl,
+        `> HUMAN_${String(index + 1).padStart(2, '0')} :: ${guess.name} :: ${guess.answer} ${status}`,
+        guess.correct ? ' result-correct' : ' result-wrong'
+      );
+    });
+  }
+
+  appendResultTerminalLine(linesEl, '', ' result-spacer');
+  appendResultTerminalLine(linesEl, `> AI :: ${aiGuess || '回答なし'}`, aiCorrect ? ' result-correct' : ' result-ai');
+  appendResultTerminalLine(linesEl, `> AI_REASON :: ${getAiReasonText({ aiFiltered, aiCorrect, aiGuess, topic })}`, ' result-dim');
+  appendResultTerminalLine(linesEl, '', ' result-spacer');
+  appendResultTerminalLine(linesEl, `> TOPIC :: ${topic}`, ' result-topic-line');
+  appendResultTerminalLine(
+    linesEl,
+    `> WINNER :: ${getWinnerLabel({ aiFiltered, roundWinner, humanWin, gameOver, matchWinner })}`,
+    gameOver && matchWinner === 'human'
+      ? ' result-correct'
+      : gameOver && matchWinner === 'ai'
+        ? ' result-ai'
+        : ' result-topic-line'
+  );
+
+  linesEl.scrollTop = 0;
+}
+
 window.addEventListener('pointerdown', primeAudio, { once: true });
 window.addEventListener('touchend', primeAudio, { once: true });
 window.addEventListener('click', primeAudio, { once: true });
@@ -610,6 +681,7 @@ socket.on('game_results', (res) => {
 
   // Sudden death banner (show when in SD and match not yet over)
   $('sudden-death-banner').classList.toggle('hidden', !isSuddenDeath || gameOver);
+  renderResultsTerminal(res);
 
   // Match winner banner
   const mwBanner = $('match-winner-banner');

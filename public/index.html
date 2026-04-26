@@ -159,7 +159,6 @@
   <div id="screen-results" class="screen">
     <div class="container">
 
-      <!-- match winner (game over) -->
       <div id="match-winner-banner" class="match-winner-banner hidden">
         <span id="match-winner-text"></span>
       </div>
@@ -183,10 +182,9 @@
       </div>
 
       <!-- round result -->
-      <div id="winner-banner" class="winner-banner">
+      <div id="winner-banner" class="winner-banner hidden">
         <span id="winner-text"></span>
       </div>
-
       <div class="card topic-reveal">
         お題は…　<strong id="result-topic"></strong>
         <span id="result-drawer" class="muted"></span>
@@ -205,6 +203,16 @@
       </div>
 
       <!-- drawings gallery (game over時) -->
+      <div class="howto-terminal results-terminal">
+        <div class="howto-chrome">
+          <span class="howto-dot dot-r"></span>
+          <span class="howto-dot dot-y"></span>
+          <span class="howto-dot dot-g"></span>
+          <span class="howto-chrome-label">results.exe</span>
+        </div>
+        <div id="results-terminal-lines" class="howto-lines results-terminal-lines"></div>
+      </div>
+
       <div id="drawings-gallery" class="hidden">
         <h3 class="section-title">今回描いた絵</h3>
         <div id="drawings-list"></div>
