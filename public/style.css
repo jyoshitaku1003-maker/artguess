@@ -848,14 +848,49 @@ input[type="range"] {
   display: none;
 }
 
+#screen-results {
+  height: 100dvh;
+  overflow: hidden;
+  align-items: stretch;
+}
+
+#screen-results .container {
+  height: 100%;
+  padding: 14px 0 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+#screen-results .scoreboard,
+#screen-results .results-terminal,
+#screen-results .result-drawing-card,
+#screen-results #drawings-gallery,
+#screen-results #next-round-btn,
+#screen-results #play-again-btn,
+#screen-results #leave-room-btn {
+  flex-shrink: 0;
+  margin-bottom: 0;
+}
+
+#screen-results #next-round-btn:not(.hidden),
+#screen-results #play-again-btn:not(.hidden),
+#screen-results #leave-room-btn:not(.hidden) {
+  margin-top: auto;
+}
+
 .results-terminal {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
   margin-bottom: 18px;
 }
 
 .results-terminal-lines {
   height: auto;
-  min-height: 15rem;
-  max-height: 24rem;
+  min-height: 0;
+  max-height: 12.5rem;
   overflow-y: auto;
   white-space: normal;
 }
@@ -891,7 +926,7 @@ input[type="range"] {
 
 .result-drawing-card {
   margin-bottom: 18px;
-  padding: 18px;
+  padding: 14px;
 }
 
 .result-drawing-header {
@@ -913,7 +948,9 @@ input[type="range"] {
 .result-drawing-image {
   display: block;
   width: 100%;
-  max-width: 560px;
+  max-width: 520px;
+  max-height: 22dvh;
+  object-fit: contain;
   margin: 0 auto;
   border-radius: 18px;
   background: #f5fff8;
@@ -1257,6 +1294,24 @@ input[type="range"] {
   .scoreboard {
     padding-top: 20px;
     padding-bottom: 20px;
+  }
+
+  #screen-results .container {
+    padding-top: 10px;
+    padding-bottom: 12px;
+    gap: 8px;
+  }
+
+  .results-terminal-lines {
+    max-height: 10.5rem;
+  }
+
+  .result-drawing-card {
+    padding: 12px;
+  }
+
+  .result-drawing-image {
+    max-height: 18dvh;
   }
 
   .canvas-wrap,
