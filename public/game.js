@@ -196,11 +196,10 @@ function getWinnerLabel({ aiFiltered, roundWinner, humanWin, gameOver, matchWinn
   }
 }
 
-function getAiReasonText({ aiFiltered, aiCorrect, aiGuess, topic }) {
-  if (aiFiltered) return 'セーフティフィルターにより回答が無効化されました';
-  if (!aiGuess) return 'AIの回答が取得できませんでした';
-  if (aiCorrect) return `お題「${topic}」と一致判定になりました`;
-  return `「${aiGuess}」と予想しましたが、お題「${topic}」とは一致しませんでした`;
+function getAiReasonText({ aiReason, aiFiltered }) {
+  if (aiReason) return aiReason;
+  if (aiFiltered) return 'セーフティフィルターにより回答理由を生成できませんでした';
+  return 'AI の推測理由を取得できませんでした';
 }
 
 function appendResultTerminalLine(linesEl, text, className = '') {
@@ -221,7 +220,7 @@ function renderResultsTerminal(res) {
   if (!linesEl) return;
 
   const {
-    topic, guesses, aiGuess, aiCorrect, aiFiltered, humanWin,
+    topic, guesses, aiGuess, aiReason, aiCorrect, aiFiltered, humanWin,
     roundWinner, gameOver, matchWinner,
   } = res;
 
@@ -248,7 +247,7 @@ function renderResultsTerminal(res) {
     className: aiCorrect ? 'result-correct' : 'result-ai',
   });
   queuedLines.push({
-    text: `> AI_REASON :: ${getAiReasonText({ aiFiltered, aiCorrect, aiGuess, topic })}`,
+    text: `> AI_REASON :: ${getAiReasonText({ aiReason, aiFiltered })}`,
     className: 'result-dim',
   });
   queuedLines.push({ text: '', className: 'result-spacer' });

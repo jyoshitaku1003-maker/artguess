@@ -72,6 +72,7 @@ function freshGame() {
     drawingData: null,
     guesses: {},
     aiGuess: null,
+    aiReason: null,
     timeLeft: ROUND_SECONDS,
     scores: { human: 0, ai: 0 },
     isSuddenDeath: false,
@@ -234,10 +235,26 @@ function checkEndCondition(room) {
 
 // ---- AI ----
 
+function parseAiVisionResult(raw) {
+  const text = String(raw ?? '').trim();
+  const fallbackMatch = text.match(/[ぁ-んァ-ン一-龠A-Za-z0-9ー]+/);
+  const fallbackAnswer = fallbackMatch ? fallbackMatch[0] : text.slice(0, 10) || 'わからない';
+
+  try {
+    const parsed = JSON.parse(text);
+    const answer = String(parsed.answer ?? '').trim() || fallbackAnswer;
+    const reason = String(parsed.reason ?? '').trim() || '画像の特徴から推測しました';
+    return { answer, reason };
+  } catch {
+    return { answer: fallbackAnswer, reason: '画像の特徴から推測しました' };
+  }
+}
+
 async function requestAIGuess(room, imageData) {
   const { game } = room;
   if (!openai) {
     game.aiGuess = 'わからない';
+    game.aiReason = 'OpenAI API を利用できないため推測できませんでした';
     io.to(room.code).emit('game_update', publicState(room));
     checkEndCondition(room);
     return;
@@ -248,12 +265,14 @@ async function requestAIGuess(room, imageData) {
     const base64 = imageData.replace(/^data:image\/[^;]+;base64,/, '');
     const response = await openai.chat.completions.create({
       model: 'gpt-4o',
-      max_tokens: 30,
+      max_tokens: 120,
+      response_format: { type: 'json_object' },
       messages: [{
         role: 'user',
         content: [
           { type: 'image_url', image_url: { url: `data:image/png;base64,${base64}`, detail: 'high' } },
-          { type: 'text', text: 'このイラストが何かを日本語の短い名詞ひとつで答えてください。説明文や言い訳は不要です。' },
+          { type: 'text', text: 'Return strict JSON only in the form {"answer":"渦巻き","reason":"中央から外に向かう曲線が見えたため"}. Guess the intended Japanese noun from the drawing. Keep the answer short. Keep the reason to one short Japanese sentence that explains which visual clues you used.' },
+          { type: 'text', text: 'このイラストが表す日本語のお題をひとつだけ推測してください。抽象的なお題でも、絵の形、配置、線の流れなどの視覚情報を根拠にして、日本語で短く答えてください。' },
         ],
       }],
     });
@@ -261,14 +280,18 @@ async function requestAIGuess(room, imageData) {
     const REFUSAL = /申し訳|できません|すみません|不適切|I'm sorry|I cannot|inappropriate/i;
     if (REFUSAL.test(raw)) {
       game.aiGuess = '__filtered__';
+      game.aiReason = 'セーフティフィルターにより回答理由を生成できませんでした';
       console.log(`[AI] Filtered response: "${raw.slice(0, 40)}"`);
     } else {
-      const match = raw.match(/[ぁ-んァ-ン一-龠A-Za-z0-9ー]+/);
-      game.aiGuess = match ? match[0] : raw.slice(0, 10);
-      console.log(`[AI] Answer: "${game.aiGuess}" (raw: "${raw}")`);
-    }  } catch (err) {
+      const parsed = parseAiVisionResult(raw);
+      game.aiGuess = parsed.answer;
+      game.aiReason = parsed.reason;
+      console.log(`[AI] Answer: "${game.aiGuess}" Reason: "${game.aiReason}" (raw: "${raw}")`);
+    }
+  } catch (err) {
     console.error('[AI] Error:', err.status ?? '', err.message);
     game.aiGuess = 'わからない';
+    game.aiReason = 'AI の推測理由を取得できませんでした';
   }
 
   if (game.phase === 'guessing') {
@@ -353,6 +376,7 @@ async function emitResults(room) {
   io.to(room.code).emit('game_results', {
     topic: game.topic, guesses: game.guesses,
     aiGuess: aiFiltered ? '（回答できませんでした）' : game.aiGuess,
+    aiReason: game.aiReason,
     aiCorrect, aiFiltered, humanWin, roundWinner, scores: { ...game.scores },
     isSuddenDeath: game.isSuddenDeath, gameOver, matchWinner,
     drawerName: drawer?.name ?? '',
