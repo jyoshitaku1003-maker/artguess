@@ -1068,6 +1068,10 @@ input[type="range"] {
   text-shadow: 0 0 18px rgba(89, 245, 140, 0.16);
 }
 
+.score-num.score-updated {
+  animation: score-flash 1.2s ease;
+}
+
 .score-sep {
   color: rgba(179, 255, 213, 0.38);
   font-size: 0.9rem;
@@ -1136,6 +1140,24 @@ input[type="range"] {
   }
   50% {
     box-shadow: var(--shadow), 0 0 24px rgba(89, 245, 140, 0.12);
+  }
+}
+
+@keyframes score-flash {
+  0% {
+    transform: scale(1);
+    color: #d7ff87;
+    text-shadow: 0 0 0 rgba(141, 255, 181, 0);
+  }
+  35% {
+    transform: scale(1.24);
+    color: #ffffff;
+    text-shadow: 0 0 22px rgba(141, 255, 181, 0.9), 0 0 42px rgba(141, 255, 181, 0.35);
+  }
+  100% {
+    transform: scale(1);
+    color: inherit;
+    text-shadow: 0 0 18px rgba(89, 245, 140, 0.16);
   }
 }
 

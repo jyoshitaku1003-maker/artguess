@@ -228,9 +228,24 @@ function clearResultsTerminalAnimation() {
   resultsTerminalTimer = null;
 }
 
-function renderResultsTerminal(res) {
+function animateScoreUpdate(el, nextValue) {
+  if (!el) return;
+  const prevValue = el.textContent;
+  const nextText = String(nextValue);
+  el.textContent = nextText;
+  if (prevValue !== nextText) {
+    el.classList.remove('score-updated');
+    void el.offsetWidth;
+    el.classList.add('score-updated');
+  }
+}
+
+function renderResultsTerminal(res, onComplete = () => {}) {
   const linesEl = $('results-terminal-lines');
-  if (!linesEl) return;
+  if (!linesEl) {
+    onComplete();
+    return;
+  }
 
   const {
     topic, guesses, aiGuess, aiReason, aiCorrect, aiFiltered, humanWin,
@@ -246,9 +261,8 @@ function renderResultsTerminal(res) {
     queuedLines.push({ text: '> 人間チーム :: 回答なし', className: 'result-dim' });
   } else {
     entries.forEach((guess) => {
-      const status = guess.correct ? '[CORRECT]' : '[MISS]';
       queuedLines.push({
-        text: `> ${guess.name} :: ${guess.answer} ${status}`,
+        text: `> ${guess.name} :: ${guess.answer}`,
         className: guess.correct ? 'result-correct' : 'result-wrong',
       });
     });
@@ -264,7 +278,7 @@ function renderResultsTerminal(res) {
     className: 'result-dim',
   });
   queuedLines.push({ text: '', className: 'result-spacer' });
-  queuedLines.push({ text: `> TOPIC :: ${topic}`, className: 'result-topic-line' });
+  queuedLines.push({ text: `> 今回のお題 :: ${topic}`, className: 'result-topic-line' });
   queuedLines.push({
     text: `> WINNER :: ${getWinnerLabel({ aiFiltered, roundWinner, humanWin, gameOver, matchWinner })}`,
     className: gameOver && matchWinner === 'human'
@@ -278,6 +292,7 @@ function renderResultsTerminal(res) {
   function paintNextLine() {
     if (index >= queuedLines.length) {
       resultsTerminalTimer = null;
+      onComplete();
       return;
     }
     const { text, className } = queuedLines[index++];
@@ -732,13 +747,12 @@ socket.on('game_results', (res) => {
   if (myGuess?.correct) playCorrectSound();
   if (gameOver && matchWinner) playVictorySound(matchWinner === 'human');
 
-  // Scores
-  $('score-human').textContent = scores.human;
-  $('score-ai').textContent    = scores.ai;
-
   // Sudden death banner (show when in SD and match not yet over)
   $('sudden-death-banner').classList.toggle('hidden', !isSuddenDeath || gameOver);
-  renderResultsTerminal(res);
+  renderResultsTerminal(res, () => {
+    animateScoreUpdate($('score-human'), scores.human);
+    animateScoreUpdate($('score-ai'), scores.ai);
+  });
 
   // Match winner banner
   const mwBanner = $('match-winner-banner');
