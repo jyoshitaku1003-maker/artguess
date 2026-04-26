@@ -59,6 +59,7 @@ let eraserOn      = false;
 // ---- DOM shortcuts ----
 const $ = id => document.getElementById(id);
 let devHoldTimer = null;
+let resultsTerminalTimer = null;
 
 // ---- audio ----
 function getAudioContext() {
@@ -209,6 +210,12 @@ function appendResultTerminalLine(linesEl, text, className = '') {
   linesEl.appendChild(line);
 }
 
+function clearResultsTerminalAnimation() {
+  if (!resultsTerminalTimer) return;
+  clearTimeout(resultsTerminalTimer);
+  resultsTerminalTimer = null;
+}
+
 function renderResultsTerminal(res) {
   const linesEl = $('results-terminal-lines');
   if (!linesEl) return;
@@ -218,38 +225,56 @@ function renderResultsTerminal(res) {
     roundWinner, gameOver, matchWinner,
   } = res;
 
+  clearResultsTerminalAnimation();
   linesEl.innerHTML = '';
 
+  const queuedLines = [];
   const entries = Object.values(guesses || {});
   if (entries.length === 0) {
-    appendResultTerminalLine(linesEl, '> HUMAN_01 :: 回答なし', ' result-dim');
+    queuedLines.push({ text: '> HUMAN_01 :: 回答なし', className: 'result-dim' });
   } else {
     entries.forEach((guess, index) => {
       const status = guess.correct ? '[CORRECT]' : '[MISS]';
-      appendResultTerminalLine(
-        linesEl,
-        `> HUMAN_${String(index + 1).padStart(2, '0')} :: ${guess.name} :: ${guess.answer} ${status}`,
-        guess.correct ? ' result-correct' : ' result-wrong'
-      );
+      queuedLines.push({
+        text: `> HUMAN_${String(index + 1).padStart(2, '0')} :: ${guess.name} :: ${guess.answer} ${status}`,
+        className: guess.correct ? 'result-correct' : 'result-wrong',
+      });
     });
   }
 
-  appendResultTerminalLine(linesEl, '', ' result-spacer');
-  appendResultTerminalLine(linesEl, `> AI :: ${aiGuess || '回答なし'}`, aiCorrect ? ' result-correct' : ' result-ai');
-  appendResultTerminalLine(linesEl, `> AI_REASON :: ${getAiReasonText({ aiFiltered, aiCorrect, aiGuess, topic })}`, ' result-dim');
-  appendResultTerminalLine(linesEl, '', ' result-spacer');
-  appendResultTerminalLine(linesEl, `> TOPIC :: ${topic}`, ' result-topic-line');
-  appendResultTerminalLine(
-    linesEl,
-    `> WINNER :: ${getWinnerLabel({ aiFiltered, roundWinner, humanWin, gameOver, matchWinner })}`,
-    gameOver && matchWinner === 'human'
-      ? ' result-correct'
+  queuedLines.push({ text: '', className: 'result-spacer' });
+  queuedLines.push({
+    text: `> AI :: ${aiGuess || '回答なし'}`,
+    className: aiCorrect ? 'result-correct' : 'result-ai',
+  });
+  queuedLines.push({
+    text: `> AI_REASON :: ${getAiReasonText({ aiFiltered, aiCorrect, aiGuess, topic })}`,
+    className: 'result-dim',
+  });
+  queuedLines.push({ text: '', className: 'result-spacer' });
+  queuedLines.push({ text: `> TOPIC :: ${topic}`, className: 'result-topic-line' });
+  queuedLines.push({
+    text: `> WINNER :: ${getWinnerLabel({ aiFiltered, roundWinner, humanWin, gameOver, matchWinner })}`,
+    className: gameOver && matchWinner === 'human'
+      ? 'result-correct'
       : gameOver && matchWinner === 'ai'
-        ? ' result-ai'
-        : ' result-topic-line'
-  );
+        ? 'result-ai'
+        : 'result-topic-line',
+  });
 
-  linesEl.scrollTop = 0;
+  let index = 0;
+  function paintNextLine() {
+    if (index >= queuedLines.length) {
+      resultsTerminalTimer = null;
+      return;
+    }
+    const { text, className } = queuedLines[index++];
+    appendResultTerminalLine(linesEl, text, className);
+    linesEl.scrollTop = linesEl.scrollHeight;
+    resultsTerminalTimer = setTimeout(paintNextLine, text ? 150 : 80);
+  }
+
+  paintNextLine();
 }
 
 window.addEventListener('pointerdown', primeAudio, { once: true });
