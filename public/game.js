@@ -257,26 +257,26 @@ function initHowtoTerminal() {
   if (!linesEl) return;
 
   const LINES = [
-    { t: '$ artdecode.exe --boot',                    pause: 700 },
-    { t: '',                                          pause: 120 },
-    { t: '  SYSTEM LINK............ ESTABLISHED',    pause: 80  },
-    { t: '  AI CORE................ ONLINE',          pause: 260 },
-    { t: '',                                          pause: 60  },
-    { t: '  ─── 作戦指令書 ────────────────',         pause: 100 },
-    { t: '',                                          pause: 50  },
-    { t: '  // MISSION 01  ひとりで遊ぶ',             pause: 160 },
-    { t: '  AIが"封印されたお題"を選定する',           pause: 55  },
-    { t: '  汝に与えられた時間は60秒のみ',             pause: 55  },
-    { t: '  全力の画力でAIを唸らせろ',                pause: 55  },
-    { t: '  連続正解数が真の実力を証明する',           pause: 240 },
-    { t: '',                                          pause: 50  },
-    { t: '  // MISSION 02  みんなで遊ぶ',             pause: 160 },
-    { t: '  描き手のみが知る「禁断のお題」',           pause: 55  },
-    { t: '  60秒で魂を込めた絵を完成させろ',          pause: 55  },
-    { t: '  仲間とAIが真実を暴こうとする',            pause: 55  },
-    { t: '  人間の叡智でAIを凌駕せよ',               pause: 260 },
-    { t: '',                                          pause: 80  },
-    { t: '> 名前を入力し、戦いに備えよ',             pause: 3400 },
+    { t: '$ artdecode.exe --boot',                                                    pause: 700 },
+    { t: '',                                                                           pause: 120 },
+    { t: '  SYSTEM LINK............ ESTABLISHED',                                    pause: 80  },
+    { t: '  AI CORE................ ONLINE',                                          pause: 260 },
+    { t: '',                                                                           pause: 60  },
+    { t: '  ─── 作戦指令書 ────────────────',  kana: '  ─── さくせんしれいしょ ────────────────', pause: 100 },
+    { t: '',                                                                           pause: 50  },
+    { t: '  // MISSION 01  ひとりで遊ぶ',       kana: '  // MISSION 01  ひとりであそぶ',          pause: 160 },
+    { t: '  AIが"封印されたお題"を選定する',     kana: '  AIが"ふういんされたおだい"をせんていする', pause: 55  },
+    { t: '  汝に与えられた時間は60秒のみ',       kana: '  なんじにあたえられたじかんは60びょうのみ', pause: 55  },
+    { t: '  全力の画力でAIを唸らせろ',           kana: '  ぜんりょくのがりょくでAIをうならせろ',    pause: 55  },
+    { t: '  連続正解数が真の実力を証明する',     kana: '  れんぞくせいかいすうがまことのじつりょくをしょうめいする', pause: 240 },
+    { t: '',                                                                           pause: 50  },
+    { t: '  // MISSION 02  みんなで遊ぶ',       kana: '  // MISSION 02  みんなであそぶ',          pause: 160 },
+    { t: '  描き手のみが知る「禁断のお題」',     kana: '  かきてのみがしる「きんだんのおだい」',    pause: 55  },
+    { t: '  60秒で魂を込めた絵を完成させろ',    kana: '  60びょうでたましいをこめたえをかんせいさせろ', pause: 55  },
+    { t: '  仲間とAIが真実を暴こうとする',      kana: '  なかまとAIがしんじつをあばこうとする',    pause: 55  },
+    { t: '  人間の叡智でAIを凌駕せよ',          kana: '  にんげんのえいちでAIをりょうがせよ',      pause: 260 },
+    { t: '',                                                                           pause: 80  },
+    { t: '> 名前を入力し、戦いに備えよ',        kana: '> なまえをにゅうりょくし、たたかいにそなえよ', pause: 3400 },
   ];
 
   let timer = null;
@@ -292,8 +292,10 @@ function initHowtoTerminal() {
     return c;
   }
 
-  function charDelay(ch) {
+  function charDelay(ch, isKana) {
     const code = ch.charCodeAt(0);
+    // ひらがな・カタカナ（IME入力中）は速め
+    if (isKana && code >= 0x3040 && code <= 0x30FF) return 36;
     if (code > 0x3000) return 65;
     if (ch === '─') return 18;
     if (ch === ' ') return 26;
@@ -317,18 +319,30 @@ function initHowtoTerminal() {
     }
 
     const line = LINES[lineIdx];
+    const src = line.kana || line.t;
+
     if (charIdx === 0) {
       activeEl = document.createElement('span');
       activeEl.className = 'howto-line';
+      if (line.kana) activeEl.classList.add('ime-pending');
       linesEl.insertBefore(activeEl, cursor);
       linesEl.scrollTop = linesEl.scrollHeight;
     }
 
-    if (charIdx < line.t.length) {
-      const ch = line.t[charIdx++];
+    if (charIdx < src.length) {
+      const ch = src[charIdx++];
       activeEl.textContent += ch;
       linesEl.scrollTop = linesEl.scrollHeight;
-      timer = setTimeout(tick, charDelay(ch));
+      timer = setTimeout(tick, charDelay(ch, !!line.kana));
+    } else if (line.kana) {
+      // 変換中：ハイライト → 漢字に置換
+      activeEl.classList.replace('ime-pending', 'ime-converting');
+      timer = setTimeout(() => {
+        activeEl.textContent = line.t;
+        activeEl.classList.remove('ime-converting');
+        lineIdx++; charIdx = 0; activeEl = null;
+        timer = setTimeout(tick, line.pause);
+      }, 300);
     } else {
       lineIdx++; charIdx = 0; activeEl = null;
       timer = setTimeout(tick, line.pause);
