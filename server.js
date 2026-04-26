@@ -719,6 +719,12 @@ io.on('connection', (socket) => {
     const me = room.game.players.find((p) => p.id === socket.id);
     if (!me?.isHost) return;
 
+    const ip = getClientIP(socket);
+    if (!hasUnlimitedRoomCreation(me.sessionId) && hasCreatedRoomToday(me.sessionId, ip)) {
+      socket.emit('error_msg', '本日はすでにプレイ済みです。明日また遊んでください。');
+      return;
+    }
+
     resetToLobby(room);
     io.to(room.code).emit('game_update', publicState(room));
     io.to(room.code).emit('reset_game');
