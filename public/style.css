@@ -997,6 +997,48 @@ input[type="range"] {
   }
 }
 
+/* ===== TOPIC CHOICES ===== */
+
+.topic-choices {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.topic-choice-btn {
+  width: 100%;
+  padding: 18px 16px;
+  font-size: 1.35rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-align: center;
+  background: rgba(5, 30, 20, 0.7);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  color: var(--text);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, transform 0.1s;
+}
+
+.topic-choice-btn:hover:not(:disabled) {
+  background: rgba(141, 255, 181, 0.12);
+  border-color: var(--primary);
+  transform: translateY(-1px);
+}
+
+.topic-choice-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.topic-choice-btn.selected {
+  background: rgba(141, 255, 181, 0.18);
+  border-color: var(--primary-strong);
+  opacity: 1;
+  color: var(--primary);
+}
+
 /* ===== SOLO MODE ===== */
 
 .solo-best-lobby {

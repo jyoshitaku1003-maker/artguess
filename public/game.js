@@ -775,36 +775,40 @@ socket.on('game_update', (state) => {
   if (state.phase !== 'topic_input') topicInputSetupDone = false;
 });
 
-socket.on('choose_topic', () => {
+socket.on('choose_topic', ({ choices }) => {
+  buildTopicChoices(choices);
   $('topic-input-drawer').classList.remove('hidden');
   $('topic-input-spectator').classList.add('hidden');
-  $('topic-input-field').value = '';
-  $('topic-submit-btn').disabled = false;
-  $('topic-input-field').focus();
+  $('topic-input-waiting').classList.add('hidden');
 });
+
+function buildTopicChoices(choices) {
+  const container = $('topic-choices');
+  container.innerHTML = '';
+  (choices || []).forEach(topic => {
+    const btn = document.createElement('button');
+    btn.className = 'btn topic-choice-btn';
+    btn.textContent = topic;
+    btn.addEventListener('click', () => {
+      container.querySelectorAll('button').forEach(b => { b.disabled = true; });
+      btn.classList.add('selected');
+      socket.emit('submit_topic', { topic });
+    });
+    container.appendChild(btn);
+  });
+}
 
 function setupTopicInputScreen(state) {
   const me = state.players.find(p => p.id === myId);
   if (me?.isDrawer) {
-    $('topic-input-drawer').classList.remove('hidden');
+    $('topic-input-drawer').classList.add('hidden');
     $('topic-input-spectator').classList.add('hidden');
-    $('topic-input-field').value = '';
-    $('topic-submit-btn').disabled = false;
-    $('topic-input-field').focus();
+    $('topic-input-waiting').classList.remove('hidden');
   } else {
     $('topic-input-drawer').classList.add('hidden');
     $('topic-input-spectator').classList.remove('hidden');
+    $('topic-input-waiting').classList.add('hidden');
   }
-}
-
-$('topic-submit-btn').addEventListener('click', submitTopic);
-$('topic-input-field').addEventListener('keydown', e => { if (e.key === 'Enter') submitTopic(); });
-
-function submitTopic() {
-  const topic = $('topic-input-field').value.trim();
-  if (!topic) return;
-  socket.emit('submit_topic', { topic });
-  $('topic-submit-btn').disabled = true;
 }
 
 // ===== DRAWING PHASE SETUP =====

@@ -72,13 +72,15 @@
   <div id="screen-topic" class="screen">
     <div class="container">
       <div id="topic-input-drawer" class="card hidden">
-        <h3 class="section-title">お題を入力してください</h3>
-        <p class="hint">なんでもOK！あなたが描くものを決めてください。</p>
-        <input id="topic-input-field" type="text" placeholder="お題（20文字以内）" maxlength="20" autocomplete="off">
-        <button id="topic-submit-btn" class="btn btn-success btn-block">決定！</button>
+        <h3 class="section-title">お題を選んでください</h3>
+        <p class="hint">AIが用意した3つのお題から1つ選んで描こう！</p>
+        <div id="topic-choices" class="topic-choices"></div>
       </div>
       <div id="topic-input-spectator" class="card hidden">
-        <p class="muted">🎨 絵を描く人がお題を考えています…</p>
+        <p class="muted">🎨 絵を描く人がお題を選んでいます…</p>
+      </div>
+      <div id="topic-input-waiting" class="card hidden">
+        <p class="muted">⏳ AIがお題を考えています…</p>
       </div>
     </div>
   </div>

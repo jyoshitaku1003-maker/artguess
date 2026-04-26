@@ -53,6 +53,7 @@ function freshGame() {
     players: [],
     drawerIndex: -1,
     topic: '',
+    topicChoices: [],
     drawingData: null,
     guesses: {},
     aiGuess: null,
@@ -337,7 +338,7 @@ function resumePlayer(socket, room, player) {
   socket.emit('joined', { sessionId: player.sessionId, roomCode: room.code });
   socket.emit('game_update', publicState(room));
 
-  if (room.game.phase === 'topic_input' && player.isDrawer) socket.emit('choose_topic');
+  if (room.game.phase === 'topic_input' && player.isDrawer) socket.emit('choose_topic', { choices: room.game.topicChoices });
   if (room.game.phase === 'drawing'     && player.isDrawer) socket.emit('your_topic', room.game.topic);
   if (room.game.phase === 'guessing'    && room.game.drawingData) {
     socket.emit('guessing_start', { imageData: room.game.drawingData });
@@ -374,6 +375,29 @@ function finalizeDisconnect(room, sessionId) {
 
   io.to(room.code).emit('game_update', publicState(room));
   checkEndCondition(room);
+}
+
+// ---- topic choices ----
+
+async function generateTopicChoices() {
+  if (!openai) return ['猫', '家', '車'];
+  try {
+    const resp = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      max_tokens: 60,
+      response_format: { type: 'json_object' },
+      messages: [{
+        role: 'user',
+        content: 'お絵かきゲームのお題を3つ考えてください。条件：日本語の名詞で1〜8文字、絵に描きやすいもの（動物・食べ物・乗り物・日用品・自然・場所など）、3つは難易度が異なるようにしてください。{"topics":["お題1","お題2","お題3"]}の形式でJSONのみ返してください。',
+      }],
+    });
+    const raw = JSON.parse(resp.choices[0].message.content);
+    if (Array.isArray(raw.topics) && raw.topics.length === 3) return raw.topics.map(t => String(t).trim().slice(0, 20));
+    return ['猫', '家', '車'];
+  } catch (err) {
+    console.error('[TopicChoices] Error:', err.message);
+    return ['猫', '家', '車'];
+  }
 }
 
 // ---- solo mode ----
@@ -511,7 +535,7 @@ io.on('connection', (socket) => {
     console.log(`[Room] ${trimmed} joined ${code}`);
   });
 
-  socket.on('start_game', () => {
+  socket.on('start_game', async () => {
     const room = getRoom(socket.id);
     if (!room) return;
     const { game } = room;
@@ -522,11 +546,13 @@ io.on('connection', (socket) => {
 
     game.drawerIndex = Math.floor(Math.random() * game.players.length);
     game.players.forEach((p, i) => { p.isDrawer = i === game.drawerIndex; });
-    game.topic = ''; game.phase = 'topic_input';
+    game.topic = ''; game.topicChoices = []; game.phase = 'topic_input';
     game.guesses = {}; game.drawingData = null; game.aiGuess = null;
 
     io.to(room.code).emit('game_update', publicState(room));
-    io.to(game.players[game.drawerIndex].id).emit('choose_topic');
+    const choices = await generateTopicChoices();
+    game.topicChoices = choices;
+    io.to(game.players[game.drawerIndex].id).emit('choose_topic', { choices });
   });
 
   socket.on('submit_topic', ({ topic }) => {
@@ -546,7 +572,7 @@ io.on('connection', (socket) => {
     io.to(me.id).emit('your_topic', game.topic);
   });
 
-  socket.on('next_round', () => {
+  socket.on('next_round', async () => {
     const room = getRoom(socket.id);
     if (!room) return;
     const { game } = room;
@@ -556,11 +582,13 @@ io.on('connection', (socket) => {
 
     game.drawerIndex = Math.floor(Math.random() * game.players.length);
     game.players.forEach((p, i) => { p.isDrawer = i === game.drawerIndex; });
-    game.topic = ''; game.phase = 'topic_input';
+    game.topic = ''; game.topicChoices = []; game.phase = 'topic_input';
     game.guesses = {}; game.drawingData = null; game.aiGuess = null; game.timeLeft = ROUND_SECONDS;
 
     io.to(room.code).emit('game_update', publicState(room));
-    io.to(game.players[game.drawerIndex].id).emit('choose_topic');
+    const choices = await generateTopicChoices();
+    game.topicChoices = choices;
+    io.to(game.players[game.drawerIndex].id).emit('choose_topic', { choices });
   });
 
   socket.on('draw_stroke', (strokeData) => {
