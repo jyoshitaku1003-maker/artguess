@@ -371,6 +371,13 @@ async function emitResults(room) {
     drawing: game.drawingData,
     topic: game.topic,
     drawerName: drawer?.name ?? '？',
+    guesses: Object.values(game.guesses).map((guess) => ({
+      name: guess.name,
+      answer: guess.answer,
+      correct: guess.correct,
+    })),
+    aiGuess: aiFiltered ? '（回答できませんでした）' : game.aiGuess,
+    roundWinner,
   });
 
   io.to(room.code).emit('game_results', {

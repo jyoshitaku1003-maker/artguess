@@ -230,118 +230,9 @@ function clearResultsTerminalAnimation() {
   resultsTerminalTimer = null;
 }
 
-function setResultsView(mode) {
-  const isFinal = mode === 'final';
-  showingFinalResults = isFinal;
-  $('screen-results').classList.toggle('final-summary-active', isFinal);
-  $('final-results-panel').classList.toggle('hidden', !isFinal);
-}
-
-function renderFinalGallery(roundHistory) {
-  const gallery = $('drawings-gallery');
-  if (!roundHistory?.length) {
-    gallery.classList.add('hidden');
-    return;
-  }
-
-  const list = $('drawings-list');
-  list.innerHTML = '';
-  roundHistory.forEach(({ drawing, topic, drawerName }) => {
-    const card = document.createElement('div');
-    card.className = 'drawing-card';
-    const img = document.createElement('img');
-    img.src = drawing;
-    img.alt = topic;
-    const info = document.createElement('div');
-    info.className = 'drawing-card-info';
-    info.innerHTML = `<div class="drawing-card-topic">${esc(topic)}</div>${esc(drawerName)}`;
-    card.appendChild(img);
-    card.appendChild(info);
-    list.appendChild(card);
-  });
-  gallery.classList.remove('hidden');
-}
-
-function showFinalResults() {
-  if (!pendingFinalResults) return;
-  clearResultsTerminalAnimation();
-  setResultsView('final');
-  $('screen-results').scrollTop = 0;
-
-  const { matchWinner, scores, roundHistory } = pendingFinalResults;
-  $('final-results-summary').textContent =
-    matchWinner === 'human'
-      ? '人間チームが最終勝利しました。全ラウンドの記録を確認できます。'
-      : 'AI が最終勝利しました。全ラウンドの記録を確認できます。';
-  $('final-results-score').textContent = `最終スコア ${scores.human} - ${scores.ai}`;
-  renderFinalGallery(roundHistory);
-
-  const me = players.find(p => p.id === myId);
-  const isHost = me?.isHost ?? false;
-  $('next-round-btn').classList.add('hidden');
-  $('play-again-btn').classList.toggle('hidden', !isHost);
-  $('leave-room-btn').classList.remove('hidden');
-}
-
-function animateScoreUpdate(el, nextValue) {
-  if (!el) return;
-  const prevValue = el.textContent;
-  const nextText = String(nextValue);
-  el.textContent = nextText;
-  if (prevValue !== nextText) {
-    el.classList.remove('score-updated');
-    void el.offsetWidth;
-    el.classList.add('score-updated');
-  }
-}
-
-function renderResultsTerminal(res, onComplete = () => {}) {
-  const linesEl = $('results-terminal-lines');
-  if (!linesEl) {
-    onComplete();
-    return;
-  }
-
-  const {
-    topic, guesses, aiGuess, aiReason, aiCorrect, aiFiltered, humanWin,
-    roundWinner, gameOver, matchWinner,
-  } = res;
-
+function playTerminalLines(linesEl, queuedLines, onComplete = () => {}) {
   clearResultsTerminalAnimation();
   linesEl.innerHTML = '';
-
-  const queuedLines = [];
-  const entries = Object.values(guesses || {});
-  if (entries.length === 0) {
-    queuedLines.push({ text: '> 人間チーム :: 回答なし', className: 'result-dim' });
-  } else {
-    entries.forEach((guess) => {
-      queuedLines.push({
-        text: `> ${guess.name} :: ${guess.answer}`,
-        className: guess.correct ? 'result-correct' : 'result-wrong',
-      });
-    });
-  }
-
-  queuedLines.push({ text: '', className: 'result-spacer' });
-  queuedLines.push({
-    text: `> AI :: ${aiGuess || '回答なし'}`,
-    className: aiCorrect ? 'result-correct' : 'result-ai',
-  });
-  queuedLines.push({
-    text: `> AI_REASON :: ${getAiReasonText({ aiReason, aiFiltered })}`,
-    className: 'result-dim',
-  });
-  queuedLines.push({ text: '', className: 'result-spacer' });
-  queuedLines.push({ text: `> 今回のお題 :: ${topic}`, className: 'result-topic-line' });
-  queuedLines.push({
-    text: `> WINNER :: ${getWinnerLabel({ aiFiltered, roundWinner, humanWin, gameOver, matchWinner })}`,
-    className: gameOver && matchWinner === 'human'
-      ? 'result-correct'
-      : gameOver && matchWinner === 'ai'
-        ? 'result-ai'
-        : 'result-topic-line',
-  });
 
   let index = 0;
   function paintNextLine() {
@@ -377,6 +268,157 @@ function renderResultsTerminal(res, onComplete = () => {}) {
   }
 
   paintNextLine();
+}
+
+function setResultsView(mode) {
+  const isFinal = mode === 'final';
+  showingFinalResults = isFinal;
+  $('screen-results').classList.toggle('final-summary-active', isFinal);
+  $('final-results-panel').classList.toggle('hidden', !isFinal);
+}
+
+function getFinalRoundWinnerLabel(roundWinner) {
+  switch (roundWinner) {
+    case 'human': return '人間チーム';
+    case 'ai': return 'AI';
+    case 'both': return '引き分け';
+    case 'none': return '判定なし';
+    default: return '記録なし';
+  }
+}
+
+function renderFinalGallery(roundHistory) {
+  const gallery = $('drawings-gallery');
+  if (!roundHistory?.length) {
+    gallery.classList.add('hidden');
+    return;
+  }
+
+  const list = $('drawings-list');
+  list.innerHTML = '';
+  roundHistory.forEach(({ drawing, topic, drawerName }) => {
+    const card = document.createElement('div');
+    card.className = 'drawing-card';
+    const img = document.createElement('img');
+    img.src = drawing;
+    img.alt = topic;
+    const info = document.createElement('div');
+    info.className = 'drawing-card-info';
+    info.innerHTML = `<div class="drawing-card-topic">${esc(topic)}</div>${esc(drawerName)}`;
+    card.appendChild(img);
+    card.appendChild(info);
+    list.appendChild(card);
+  });
+  gallery.classList.remove('hidden');
+}
+
+function showFinalResults() {
+  if (!pendingFinalResults) return;
+  clearResultsTerminalAnimation();
+  setResultsView('final');
+  $('screen-results').scrollTop = 0;
+
+  const { matchWinner, scores, roundHistory } = pendingFinalResults;
+  const linesEl = $('final-results-terminal-lines');
+  const queuedLines = [
+    { text: '> ARCHIVE OPENED :: thank you for drawing with us', className: 'result-topic-line' },
+    { text: matchWinner === 'human'
+      ? '> 人のひらめきが最後まで光っていました。付き合ってくれて、ありがとう。'
+      : '> 最後までこの勝負を見届けてくれて、ありがとう。AI も本気でした。', className: 'result-dim' },
+    { text: `> FINAL WINNER :: ${matchWinner === 'human' ? '人間チーム' : 'AI'}`, className: matchWinner === 'human' ? 'result-correct' : 'result-ai' },
+    { text: `> FINAL SCORE :: HUMAN ${scores.human} / AI ${scores.ai}`, className: 'result-topic-line' },
+    { text: '', className: 'result-spacer' },
+  ];
+
+  roundHistory.forEach((round, index) => {
+    queuedLines.push({
+      text: `> ROUND ${String(index + 1).padStart(2, '0')} :: お題「${round.topic}」 / DRAWER ${round.drawerName}`,
+      className: 'result-topic-line',
+    });
+    if (round.guesses?.length) {
+      round.guesses.forEach((guess) => {
+        queuedLines.push({
+          text: `>   ${guess.name} :: ${guess.answer}`,
+          className: guess.correct ? 'result-correct' : 'result-wrong',
+        });
+      });
+    } else {
+      queuedLines.push({ text: '>   HUMAN :: 回答なし', className: 'result-dim' });
+    }
+    queuedLines.push({ text: `>   AI :: ${round.aiGuess || '回答なし'}`, className: 'result-ai' });
+    queuedLines.push({ text: `>   ROUND WINNER :: ${getFinalRoundWinnerLabel(round.roundWinner)}`, className: 'result-dim' });
+    queuedLines.push({ text: '', className: 'result-spacer' });
+  });
+
+  queuedLines.push({ text: '> LOG COMPLETE :: また次のラウンドで会いましょう。', className: 'result-topic-line' });
+  playTerminalLines(linesEl, queuedLines);
+  renderFinalGallery(roundHistory);
+
+  const me = players.find(p => p.id === myId);
+  const isHost = me?.isHost ?? false;
+  $('next-round-btn').classList.add('hidden');
+  $('play-again-btn').classList.toggle('hidden', !isHost);
+  $('leave-room-btn').classList.remove('hidden');
+}
+
+function animateScoreUpdate(el, nextValue) {
+  if (!el) return;
+  const prevValue = el.textContent;
+  const nextText = String(nextValue);
+  el.textContent = nextText;
+  if (prevValue !== nextText) {
+    el.classList.remove('score-updated');
+    void el.offsetWidth;
+    el.classList.add('score-updated');
+  }
+}
+
+function renderResultsTerminal(res, onComplete = () => {}) {
+  const linesEl = $('results-terminal-lines');
+  if (!linesEl) {
+    onComplete();
+    return;
+  }
+
+  const {
+    topic, guesses, aiGuess, aiReason, aiCorrect, aiFiltered, humanWin,
+    roundWinner, gameOver, matchWinner,
+  } = res;
+
+  const queuedLines = [];
+  const entries = Object.values(guesses || {});
+  if (entries.length === 0) {
+    queuedLines.push({ text: '> 人間チーム :: 回答なし', className: 'result-dim' });
+  } else {
+    entries.forEach((guess) => {
+      queuedLines.push({
+        text: `> ${guess.name} :: ${guess.answer}`,
+        className: guess.correct ? 'result-correct' : 'result-wrong',
+      });
+    });
+  }
+
+  queuedLines.push({ text: '', className: 'result-spacer' });
+  queuedLines.push({
+    text: `> AI :: ${aiGuess || '回答なし'}`,
+    className: aiCorrect ? 'result-correct' : 'result-ai',
+  });
+  queuedLines.push({
+    text: `> AI_REASON :: ${getAiReasonText({ aiReason, aiFiltered })}`,
+    className: 'result-dim',
+  });
+  queuedLines.push({ text: '', className: 'result-spacer' });
+  queuedLines.push({ text: `> 今回のお題 :: ${topic}`, className: 'result-topic-line' });
+  queuedLines.push({
+    text: `> WINNER :: ${getWinnerLabel({ aiFiltered, roundWinner, humanWin, gameOver, matchWinner })}`,
+    className: gameOver && matchWinner === 'human'
+      ? 'result-correct'
+      : gameOver && matchWinner === 'ai'
+        ? 'result-ai'
+        : 'result-topic-line',
+  });
+
+  playTerminalLines(linesEl, queuedLines, onComplete);
 }
 
 window.addEventListener('pointerdown', primeAudio, { once: true });

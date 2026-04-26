@@ -983,32 +983,24 @@ input[type="range"] {
 }
 
 .final-results-panel {
-  padding: 18px 20px;
+  padding: 0;
+  overflow: hidden;
 }
 
-.final-results-label {
-  margin-bottom: 10px;
-  color: #d7ff87;
-  font-size: 0.84rem;
-  font-weight: 900;
-  letter-spacing: 0.22em;
+.final-results-terminal {
+  margin-bottom: 0;
 }
 
-.final-results-summary,
-.final-results-score {
-  margin: 0;
-  line-height: 1.7;
+.final-results-terminal-lines {
+  min-height: 18rem;
+  max-height: none;
+  height: auto;
+  overflow: visible;
+  white-space: normal;
 }
 
-.final-results-summary {
-  color: var(--text);
-  font-size: 1.05rem;
-  font-weight: 800;
-}
-
-.final-results-score {
-  margin-top: 8px;
-  color: var(--muted);
+.final-results-terminal .result-line {
+  white-space: pre-wrap;
 }
 
 .match-winner-banner {
