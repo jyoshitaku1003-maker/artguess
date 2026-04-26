@@ -267,7 +267,7 @@ function initHowtoTerminal() {
     { t: '  // MISSION 01  ひとりで遊ぶ',             pause: 160 },
     { t: '  AIが"封印されたお題"を選定する',           pause: 55  },
     { t: '  汝に与えられた時間は60秒のみ',             pause: 55  },
-    { t: '  絵に答えを宿し、AIの目を欺け',             pause: 55  },
+    { t: '  全力の画力でAIを唸らせろ',                pause: 55  },
     { t: '  連続正解数が真の実力を証明する',           pause: 240 },
     { t: '',                                          pause: 50  },
     { t: '  // MISSION 02  みんなで遊ぶ',             pause: 160 },
