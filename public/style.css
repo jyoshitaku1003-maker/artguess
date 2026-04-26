@@ -989,13 +989,15 @@ input[type="range"] {
 
 .final-results-terminal {
   margin-bottom: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .final-results-terminal-lines {
+  height: 18rem;
   min-height: 18rem;
-  max-height: none;
-  height: auto;
-  overflow: visible;
+  max-height: 18rem;
+  overflow-y: auto;
   white-space: normal;
 }
 
@@ -1357,6 +1359,12 @@ input[type="range"] {
 
   .result-drawing-image {
     max-height: 18dvh;
+  }
+
+  .final-results-terminal-lines {
+    height: 14.5rem;
+    min-height: 14.5rem;
+    max-height: 14.5rem;
   }
 
   .canvas-wrap,
