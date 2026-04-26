@@ -231,12 +231,12 @@ function renderResultsTerminal(res) {
   const queuedLines = [];
   const entries = Object.values(guesses || {});
   if (entries.length === 0) {
-    queuedLines.push({ text: '> HUMAN_01 :: 回答なし', className: 'result-dim' });
+    queuedLines.push({ text: '> 人間チーム :: 回答なし', className: 'result-dim' });
   } else {
-    entries.forEach((guess, index) => {
+    entries.forEach((guess) => {
       const status = guess.correct ? '[CORRECT]' : '[MISS]';
       queuedLines.push({
-        text: `> HUMAN_${String(index + 1).padStart(2, '0')} :: ${guess.name} :: ${guess.answer} ${status}`,
+        text: `> ${guess.name} :: ${guess.answer} ${status}`,
         className: guess.correct ? 'result-correct' : 'result-wrong',
       });
     });
