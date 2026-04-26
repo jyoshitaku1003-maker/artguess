@@ -1,6 +1,6 @@
 {
-  "name": "DRAW//DECODE",
-  "short_name": "DRAW//DECODE",
+  "name": "ArtDecode",
+  "short_name": "ArtDecode",
   "description": "Drawing battle between humans and AI.",
   "start_url": "/",
   "display": "standalone",

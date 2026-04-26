@@ -1047,6 +1047,64 @@ input[type="range"] {
   }
 }
 
+/* ── LOBBY: full-viewport flex layout, no page scroll ── */
+#screen-lobby {
+  height: 100dvh;
+  overflow: hidden;
+  align-items: stretch;
+}
+
+#screen-lobby .container {
+  height: 100%;
+  padding: 14px 0 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+#screen-lobby .logo {
+  flex-shrink: 0;
+  margin-bottom: 0;
+  padding: 0 20px 4px;
+}
+
+#screen-lobby .logo h1 {
+  font-size: clamp(2.2rem, 9vw, 4.2rem);
+  line-height: 1;
+}
+
+#screen-lobby .eyebrow {
+  margin-bottom: 8px;
+}
+
+#screen-lobby .howto-terminal {
+  flex: 1;
+  min-height: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+#screen-lobby .howto-lines {
+  flex: 1;
+  min-height: 0;
+  height: auto;
+  overflow-y: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+#screen-lobby .howto-lines::-webkit-scrollbar {
+  display: none;
+}
+
+#screen-lobby #join-card,
+#screen-lobby #room-list-card,
+#screen-lobby #lobby-info {
+  flex-shrink: 0;
+  margin-bottom: 0;
+}
+
 @media (max-width: 720px) {
   .screen {
     padding: 16px 12px 30px;
