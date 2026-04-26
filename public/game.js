@@ -257,7 +257,7 @@ function initHowtoTerminal() {
   if (!linesEl) return;
 
   const LINES = [
-    { t: '$ artguess.exe --boot',                    pause: 700 },
+    { t: '$ draw-decode.exe --boot',                  pause: 700 },
     { t: '',                                          pause: 120 },
     { t: '  SYSTEM LINK............ ESTABLISHED',    pause: 80  },
     { t: '  AI CORE................ ONLINE',          pause: 260 },

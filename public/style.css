@@ -226,6 +226,13 @@ body::before {
     0 0 38px rgba(58, 214, 120, 0.22);
 }
 
+.title-slash {
+  color: var(--primary-strong);
+  opacity: 0.75;
+  font-weight: 300;
+  letter-spacing: 0;
+}
+
 .tagline {
   max-width: 34rem;
   margin: 14px auto 0;
