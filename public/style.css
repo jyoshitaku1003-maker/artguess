@@ -999,6 +999,14 @@ input[type="range"] {
 
 /* ===== SOLO MODE ===== */
 
+.solo-best-lobby {
+  text-align: center;
+  font-size: 0.82rem;
+  color: #ffc83c;
+  letter-spacing: 0.04em;
+  margin-bottom: 10px;
+}
+
 .solo-topic-card {
   text-align: center;
   padding: 32px 24px;

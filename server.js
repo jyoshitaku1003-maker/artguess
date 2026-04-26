@@ -35,6 +35,7 @@ const rooms = new Map();       // roomCode -> room
 const playerRoom = new Map();  // socketId -> roomCode
 const sessionRoom = new Map(); // sessionId -> roomCode
 const createdRoomDates = new Map(); // sessionId -> YYYY-MM-DD
+const soloPlayedDates  = new Map(); // sessionId -> YYYY-MM-DD
 const unlimitedCreatorSessions = new Set();
 
 function generateRoomCode() {
@@ -98,6 +99,16 @@ function markRoomCreatedToday(sessionId) {
 function hasUnlimitedRoomCreation(sessionId) {
   if (!sessionId) return false;
   return unlimitedCreatorSessions.has(sessionId);
+}
+
+function hasSoloPlayedToday(sessionId) {
+  if (!sessionId) return false;
+  return soloPlayedDates.get(sessionId) === getTodayKey();
+}
+
+function markSoloPlayedToday(sessionId) {
+  if (!sessionId) return;
+  soloPlayedDates.set(sessionId, getTodayKey());
 }
 
 // ---- helpers ----
@@ -608,6 +619,18 @@ io.on('connection', (socket) => {
     resetToLobby(room);
     io.to(room.code).emit('game_update', publicState(room));
     io.to(room.code).emit('reset_game');
+  });
+
+  socket.on('solo_session_start', ({ sessionId }) => {
+    const sid = String(sessionId ?? '').trim();
+    if (!sid) { socket.emit('solo_session_result', false); return; }
+    if (!hasUnlimitedRoomCreation(sid) && hasSoloPlayedToday(sid)) {
+      socket.emit('solo_session_result', false);
+      return;
+    }
+    markSoloPlayedToday(sid);
+    socket.emit('solo_session_result', true);
+    console.log(`[Solo] Session started: ${sid}`);
   });
 
   socket.on('solo_start', async () => {

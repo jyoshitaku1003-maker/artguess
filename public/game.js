@@ -29,7 +29,23 @@ let soloCurrentImageData = null;
 const SOLO_BEST_KEY      = 'artguessSoloBest';
 
 function getSoloBest() { return parseInt(localStorage.getItem(SOLO_BEST_KEY) || '0'); }
-function updateSoloBest(n) { if (n > getSoloBest()) localStorage.setItem(SOLO_BEST_KEY, String(n)); }
+function updateSoloBest(n) {
+  if (n > getSoloBest()) {
+    localStorage.setItem(SOLO_BEST_KEY, String(n));
+    refreshSoloBestLobby();
+  }
+}
+function refreshSoloBestLobby() {
+  const el = $('solo-best-lobby');
+  if (!el) return;
+  const best = getSoloBest();
+  if (best > 0) {
+    el.textContent = `🏆 ひとりモード ベスト: ${best}問`;
+    el.classList.remove('hidden');
+  } else {
+    el.classList.add('hidden');
+  }
+}
 
 // ---- canvas drawing ----
 const COLORS = ['#111111'];
@@ -258,6 +274,7 @@ function setupDeveloperHotspot() {
 }
 
 setupDeveloperHotspot();
+refreshSoloBestLobby();
 
 // ---- screen management ----
 function showScreen(name) {
@@ -526,10 +543,18 @@ function startSoloMode() {
   primeAudio();
   void unlockAudio();
   myName = name;
+  socket.emit('solo_session_start', { sessionId: mySessionId });
+}
+
+socket.on('solo_session_result', (ok) => {
+  if (!ok) {
+    alert('ひとりモードは1日1回です。明日またチャレンジしてください！');
+    return;
+  }
   soloMode = true;
   soloStreak = 0;
   socket.emit('solo_start');
-}
+});
 
 function exitSoloMode() {
   soloMode = false;
