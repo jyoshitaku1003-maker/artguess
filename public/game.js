@@ -256,34 +256,130 @@ function initHowtoTerminal() {
   const linesEl = document.getElementById('howto-lines');
   if (!linesEl) return;
 
+  // segs: array of { t } (plain) or { kana, kanji } (IME conversion)
   const LINES = [
-    { t: '$ artdecode.exe --boot',                                                    pause: 700 },
-    { t: '',                                                                           pause: 120 },
-    { t: '  SYSTEM LINK............ ESTABLISHED',                                    pause: 80  },
-    { t: '  AI CORE................ ONLINE',                                          pause: 260 },
-    { t: '',                                                                           pause: 60  },
-    { t: '  ─── 作戦指令書 ────────────────',  kana: '  ─── さくせんしれいしょ ────────────────', pause: 100 },
-    { t: '',                                                                           pause: 50  },
-    { t: '  // MISSION 01  ひとりで遊ぶ',       kana: '  // MISSION 01  ひとりであそぶ',          pause: 160 },
-    { t: '  AIが"封印されたお題"を選定する',     kana: '  AIが"ふういんされたおだい"をせんていする', pause: 55  },
-    { t: '  汝に与えられた時間は60秒のみ',       kana: '  なんじにあたえられたじかんは60びょうのみ', pause: 55  },
-    { t: '  全力の画力でAIを唸らせろ',           kana: '  ぜんりょくのがりょくでAIをうならせろ',    pause: 55  },
-    { t: '  連続正解数が真の実力を証明する',     kana: '  れんぞくせいかいすうがまことのじつりょくをしょうめいする', pause: 240 },
-    { t: '',                                                                           pause: 50  },
-    { t: '  // MISSION 02  みんなで遊ぶ',       kana: '  // MISSION 02  みんなであそぶ',          pause: 160 },
-    { t: '  描き手のみが知る「禁断のお題」',     kana: '  かきてのみがしる「きんだんのおだい」',    pause: 55  },
-    { t: '  60秒で魂を込めた絵を完成させろ',    kana: '  60びょうでたましいをこめたえをかんせいさせろ', pause: 55  },
-    { t: '  仲間とAIが真実を暴こうとする',      kana: '  なかまとAIがしんじつをあばこうとする',    pause: 55  },
-    { t: '  人間の叡智でAIを凌駕せよ',          kana: '  にんげんのえいちでAIをりょうがせよ',      pause: 260 },
-    { t: '',                                                                           pause: 80  },
-    { t: '> 名前を入力し、戦いに備えよ',        kana: '> なまえをにゅうりょくし、たたかいにそなえよ', pause: 3400 },
+    { segs: [{ t: '$ artdecode.exe --boot' }], pause: 700 },
+    { segs: [{ t: '' }], pause: 120 },
+    { segs: [{ t: '  SYSTEM LINK............ ESTABLISHED' }], pause: 80 },
+    { segs: [{ t: '  AI CORE................ ONLINE' }], pause: 260 },
+    { segs: [{ t: '' }], pause: 60 },
+    { segs: [
+      { t: '  ─── ' },
+      { kana: 'さくせん',    kanji: '作戦' },
+      { kana: 'しれいしょ',  kanji: '指令書' },
+      { t: ' ────────────────' },
+    ], pause: 100 },
+    { segs: [{ t: '' }], pause: 50 },
+    { segs: [
+      { t: '  // MISSION 01  ひとりで' },
+      { kana: 'あそぶ', kanji: '遊ぶ' },
+    ], pause: 160 },
+    { segs: [
+      { t: '  AIが"' },
+      { kana: 'ふういん',  kanji: '封印' },
+      { t: 'されたお' },
+      { kana: 'だい',      kanji: '題' },
+      { t: '"を' },
+      { kana: 'せんてい',  kanji: '選定' },
+      { t: 'する' },
+    ], pause: 55 },
+    { segs: [
+      { t: '  ' },
+      { kana: 'なんじ',        kanji: '汝' },
+      { t: 'に' },
+      { kana: 'あたえられた',  kanji: '与えられた' },
+      { kana: 'じかん',        kanji: '時間' },
+      { t: 'は60' },
+      { kana: 'びょう',        kanji: '秒' },
+      { t: 'のみ' },
+    ], pause: 55 },
+    { segs: [
+      { t: '  ' },
+      { kana: 'ぜんりょく',  kanji: '全力' },
+      { t: 'の' },
+      { kana: 'がりょく',    kanji: '画力' },
+      { t: 'でAIを' },
+      { kana: 'うなら',      kanji: '唸ら' },
+      { t: 'せろ' },
+    ], pause: 55 },
+    { segs: [
+      { t: '  ' },
+      { kana: 'れんぞく',      kanji: '連続' },
+      { kana: 'せいかいすう',  kanji: '正解数' },
+      { t: 'が' },
+      { kana: 'まこと',        kanji: '真' },
+      { t: 'の' },
+      { kana: 'じつりょく',    kanji: '実力' },
+      { t: 'を' },
+      { kana: 'しょうめい',    kanji: '証明' },
+      { t: 'する' },
+    ], pause: 240 },
+    { segs: [{ t: '' }], pause: 50 },
+    { segs: [
+      { t: '  // MISSION 02  みんなで' },
+      { kana: 'あそぶ', kanji: '遊ぶ' },
+    ], pause: 160 },
+    { segs: [
+      { t: '  ' },
+      { kana: 'かきて',    kanji: '描き手' },
+      { t: 'のみが' },
+      { kana: 'しる',      kanji: '知る' },
+      { t: '「' },
+      { kana: 'きんだん',  kanji: '禁断' },
+      { t: 'のお' },
+      { kana: 'だい',      kanji: '題' },
+      { t: '」' },
+    ], pause: 55 },
+    { segs: [
+      { t: '  60' },
+      { kana: 'びょう',    kanji: '秒' },
+      { t: 'で' },
+      { kana: 'たましい',  kanji: '魂' },
+      { t: 'を' },
+      { kana: 'こめた',    kanji: '込めた' },
+      { kana: 'え',        kanji: '絵' },
+      { t: 'を' },
+      { kana: 'かんせい',  kanji: '完成' },
+      { t: 'させろ' },
+    ], pause: 55 },
+    { segs: [
+      { t: '  ' },
+      { kana: 'なかま',    kanji: '仲間' },
+      { t: 'とAIが' },
+      { kana: 'しんじつ',  kanji: '真実' },
+      { t: 'を' },
+      { kana: 'あばこう',  kanji: '暴こう' },
+      { t: 'とする' },
+    ], pause: 55 },
+    { segs: [
+      { t: '  ' },
+      { kana: 'にんげん',  kanji: '人間' },
+      { t: 'の' },
+      { kana: 'えいち',    kanji: '叡智' },
+      { t: 'でAIを' },
+      { kana: 'りょうが',  kanji: '凌駕' },
+      { t: 'せよ' },
+    ], pause: 260 },
+    { segs: [{ t: '' }], pause: 80 },
+    { segs: [
+      { t: '> ' },
+      { kana: 'なまえ',       kanji: '名前' },
+      { t: 'を' },
+      { kana: 'にゅうりょく', kanji: '入力' },
+      { t: 'し、' },
+      { kana: 'たたかい',     kanji: '戦い' },
+      { t: 'に' },
+      { kana: 'そなえよ',     kanji: '備えよ' },
+    ], pause: 3400 },
   ];
 
   let timer = null;
   let lineIdx = 0;
+  let segIdx  = 0;
   let charIdx = 0;
-  let activeEl = null;
-  let cursor = makeCursor();
+  let lineEl  = null;
+  let segEl   = null;
+  let cursor  = makeCursor();
   linesEl.appendChild(cursor);
 
   function makeCursor() {
@@ -294,7 +390,6 @@ function initHowtoTerminal() {
 
   function charDelay(ch, isKana) {
     const code = ch.charCodeAt(0);
-    // ひらがな・カタカナ（IME入力中）は速め
     if (isKana && code >= 0x3040 && code <= 0x30FF) return 36;
     if (code > 0x3000) return 65;
     if (ch === '─') return 18;
@@ -312,40 +407,59 @@ function initHowtoTerminal() {
         linesEl.style.opacity = '1';
         cursor = makeCursor();
         linesEl.appendChild(cursor);
-        lineIdx = 0; charIdx = 0; activeEl = null;
+        lineIdx = 0; segIdx = 0; charIdx = 0;
+        lineEl = null; segEl = null;
         timer = setTimeout(tick, 320);
       }, 650);
       return;
     }
 
     const line = LINES[lineIdx];
-    const src = line.kana || line.t;
 
-    if (charIdx === 0) {
-      activeEl = document.createElement('span');
-      activeEl.className = 'howto-line';
-      if (line.kana) activeEl.classList.add('ime-pending');
-      linesEl.insertBefore(activeEl, cursor);
+    // 行の先頭：.howto-line 要素を作成
+    if (segIdx === 0 && charIdx === 0) {
+      lineEl = document.createElement('span');
+      lineEl.className = 'howto-line';
+      linesEl.insertBefore(lineEl, cursor);
+    }
+
+    // 行の全セグメント完了
+    if (segIdx >= line.segs.length) {
       linesEl.scrollTop = linesEl.scrollHeight;
+      lineIdx++; segIdx = 0; charIdx = 0;
+      lineEl = null; segEl = null;
+      timer = setTimeout(tick, line.pause);
+      return;
+    }
+
+    const seg = line.segs[segIdx];
+    const src = seg.kana || seg.t;
+
+    // セグメント先頭：span を作成して行に追加
+    if (charIdx === 0) {
+      segEl = document.createElement('span');
+      if (seg.kana) segEl.className = 'ime-pending';
+      lineEl.appendChild(segEl);
     }
 
     if (charIdx < src.length) {
-      const ch = src[charIdx++];
-      activeEl.textContent += ch;
+      segEl.textContent += src[charIdx++];
       linesEl.scrollTop = linesEl.scrollHeight;
-      timer = setTimeout(tick, charDelay(ch, !!line.kana));
-    } else if (line.kana) {
-      // 変換中：ハイライト → 漢字に置換
-      activeEl.classList.replace('ime-pending', 'ime-converting');
+      timer = setTimeout(tick, charDelay(src[charIdx - 1], !!seg.kana));
+    } else if (seg.kana) {
+      // 変換：ハイライト → 漢字に置換
+      segEl.classList.replace('ime-pending', 'ime-converting');
       timer = setTimeout(() => {
-        activeEl.textContent = line.t;
-        activeEl.classList.remove('ime-converting');
-        lineIdx++; charIdx = 0; activeEl = null;
-        timer = setTimeout(tick, line.pause);
-      }, 300);
+        segEl.textContent = seg.kanji;
+        segEl.classList.remove('ime-converting');
+        segEl = null;
+        segIdx++; charIdx = 0;
+        timer = setTimeout(tick, 40);
+      }, 260);
     } else {
-      lineIdx++; charIdx = 0; activeEl = null;
-      timer = setTimeout(tick, line.pause);
+      segEl = null;
+      segIdx++; charIdx = 0;
+      timer = setTimeout(tick, 0);
     }
   }
 
