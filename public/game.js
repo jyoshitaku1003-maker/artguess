@@ -321,11 +321,13 @@ function initHowtoTerminal() {
       activeEl = document.createElement('span');
       activeEl.className = 'howto-line';
       linesEl.insertBefore(activeEl, cursor);
+      linesEl.scrollTop = linesEl.scrollHeight;
     }
 
     if (charIdx < line.t.length) {
       const ch = line.t[charIdx++];
       activeEl.textContent += ch;
+      linesEl.scrollTop = linesEl.scrollHeight;
       timer = setTimeout(tick, charDelay(ch));
     } else {
       lineIdx++; charIdx = 0; activeEl = null;
