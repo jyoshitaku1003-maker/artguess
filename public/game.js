@@ -21,6 +21,16 @@ let masterGain  = null;
 let lastPhase   = 'lobby';
 let lastSoundAt = { join: 0, start: 0 };
 
+// ---- solo state ----
+let soloMode             = false;
+let soloStreak           = 0;
+let soloTopic            = null;
+let soloCurrentImageData = null;
+const SOLO_BEST_KEY      = 'artguessSoloBest';
+
+function getSoloBest() { return parseInt(localStorage.getItem(SOLO_BEST_KEY) || '0'); }
+function updateSoloBest(n) { if (n > getSoloBest()) localStorage.setItem(SOLO_BEST_KEY, String(n)); }
+
 // ---- canvas drawing ----
 const COLORS = ['#111111'];
 
@@ -489,8 +499,19 @@ socket.on('error_msg', (msg) => {
 
 // ===== LOBBY =====
 
+$('solo-btn').addEventListener('click', startSoloMode);
+$('multi-btn').addEventListener('click', () => {
+  const name = $('name-input').value.trim();
+  if (!name) { alert('名前を入力してください。'); return; }
+  $('mode-select').classList.add('hidden');
+  $('multi-options').classList.remove('hidden');
+});
+$('back-to-mode-btn').addEventListener('click', () => {
+  $('multi-options').classList.add('hidden');
+  $('mode-select').classList.remove('hidden');
+});
 $('create-room-btn').addEventListener('click', doCreateRoom);
-$('name-input').addEventListener('keydown', e => { if (e.key === 'Enter') doCreateRoom(); });
+$('name-input').addEventListener('keydown', e => { if (e.key === 'Enter') { if (!$('multi-options').classList.contains('hidden')) doCreateRoom(); } });
 $('show-rooms-btn').addEventListener('click', showRoomList);
 $('lobby-back-btn').addEventListener('click', returnToEntryLobby);
 $('back-to-lobby-btn').addEventListener('click', () => {
@@ -498,6 +519,124 @@ $('back-to-lobby-btn').addEventListener('click', () => {
   $('join-card').classList.remove('hidden');
 });
 $('refresh-rooms-btn').addEventListener('click', () => socket.emit('get_rooms'));
+
+function startSoloMode() {
+  const name = $('name-input').value.trim();
+  if (!name) { alert('名前を入力してください。'); return; }
+  primeAudio();
+  void unlockAudio();
+  myName = name;
+  soloMode = true;
+  soloStreak = 0;
+  socket.emit('solo_start');
+}
+
+function exitSoloMode() {
+  soloMode = false;
+  soloStreak = 0;
+  soloTopic = null;
+  soloCurrentImageData = null;
+  showScreen('lobby');
+  $('join-card').classList.remove('hidden');
+  $('lobby-info').classList.add('hidden');
+  $('multi-options').classList.add('hidden');
+  $('mode-select').classList.remove('hidden');
+}
+
+socket.on('solo_topic', (topic) => {
+  soloTopic = topic;
+  $('solo-topic-text').textContent = topic;
+  const badge = $('solo-streak-badge');
+  if (soloStreak > 0) {
+    $('solo-streak-count-badge').textContent = soloStreak;
+    badge.classList.remove('hidden');
+  } else {
+    badge.classList.add('hidden');
+  }
+  showScreen('solo-topic');
+});
+
+socket.on('solo_result', ({ aiGuess, correct, topic, aiFiltered }) => {
+  const prevStreak = soloStreak;
+  if (correct) {
+    soloStreak++;
+    playCorrectSound();
+  } else if (!aiFiltered) {
+    updateSoloBest(prevStreak);
+    soloStreak = 0;
+    playVictorySound(false);
+  }
+
+  $('solo-result-topic').textContent = topic;
+  $('solo-ai-guess').textContent = aiGuess || '（回答なし）';
+
+  const aiCard = $('solo-ai-card');
+  aiCard.classList.toggle('correct-card', !!correct);
+  aiCard.classList.toggle('wrong-card', !correct && !aiFiltered);
+
+  const banner = $('solo-result-banner');
+  const txt = $('solo-result-text');
+  banner.className = 'winner-banner';
+  if (aiFiltered) {
+    banner.classList.add('win-none');
+    txt.textContent = '🚫 AIが回答できませんでした';
+  } else if (correct) {
+    banner.classList.add('win-human');
+    txt.textContent = '🎉 AIに当ててもらえた！';
+  } else {
+    banner.classList.add('win-ai');
+    txt.textContent = '😅 AIに伝わらなかった…';
+  }
+
+  const displayStreak = correct ? soloStreak : prevStreak;
+  $('solo-streak-num').textContent = displayStreak;
+  const best = getSoloBest();
+  $('solo-best-row').textContent = best > 0 ? `ベスト: ${best}問` : '';
+
+  if (soloCurrentImageData) {
+    const rc = $('solo-result-canvas');
+    if (rc) {
+      const ctx = rc.getContext('2d');
+      const img = new Image();
+      img.onload = () => { ctx.clearRect(0, 0, rc.width, rc.height); ctx.drawImage(img, 0, 0, rc.width, rc.height); };
+      img.src = soloCurrentImageData;
+    }
+  }
+
+  $('solo-next-btn').classList.toggle('hidden', !correct && !aiFiltered);
+  $('solo-retry-btn').classList.toggle('hidden', correct || !!aiFiltered);
+
+  showScreen('solo-result');
+});
+
+$('solo-start-draw-btn').addEventListener('click', () => {
+  drawingSetupDone = false;
+  eraserOn = false;
+  $('eraser-btn').classList.remove('active');
+  const btn = $('submit-drawing-btn');
+  btn.disabled = false;
+  btn.textContent = '完成！送信する';
+  $('topic-display').textContent = soloTopic;
+  $('topic-banner').classList.remove('hidden');
+  $('spectator-banner').classList.add('hidden');
+  $('draw-tools').classList.remove('hidden');
+  buildPalette();
+  attachDrawEvents($('draw-canvas'));
+  fillWhite($('draw-canvas'));
+  showScreen('drawing');
+});
+
+$('solo-topic-back-btn').addEventListener('click', exitSoloMode);
+
+$('solo-next-btn').addEventListener('click', () => {
+  soloCurrentImageData = null;
+  socket.emit('solo_start');
+});
+$('solo-retry-btn').addEventListener('click', () => {
+  soloCurrentImageData = null;
+  socket.emit('solo_start');
+});
+$('solo-back-btn').addEventListener('click', exitSoloMode);
 
 socket.on('room_list', (list) => {
   const ul = $('room-list');
@@ -744,11 +883,13 @@ function continueDraw(canvas, e) {
 function endDraw(canvas) {
   if (!isDrawing || currentStroke.length < 2) { isDrawing = false; currentStroke = []; return; }
   isDrawing = false;
-  socket.emit('draw_stroke', {
-    points: currentStroke,
-    color:  eraserOn ? '#ffffff' : penColor,
-    size:   eraserOn ? brushSize * 3 : brushSize,
-  });
+  if (!soloMode) {
+    socket.emit('draw_stroke', {
+      points: currentStroke,
+      color:  eraserOn ? '#ffffff' : penColor,
+      size:   eraserOn ? brushSize * 3 : brushSize,
+    });
+  }
   currentStroke = [];
 }
 
@@ -786,7 +927,7 @@ $('brush-size').addEventListener('input', e => { brushSize = Number(e.target.val
 $('clear-btn').addEventListener('click', () => {
   const c = $('draw-canvas');
   if (c) fillWhite(c);
-  socket.emit('canvas_clear');
+  if (!soloMode) socket.emit('canvas_clear');
 });
 
 $('submit-drawing-btn').addEventListener('click', () => {
@@ -795,7 +936,13 @@ $('submit-drawing-btn').addEventListener('click', () => {
   const btn = $('submit-drawing-btn');
   btn.disabled = true;
   btn.textContent = '送信中…';
-  socket.emit('submit_drawing', c.toDataURL('image/png'));
+  const imageData = c.toDataURL('image/png');
+  if (soloMode) {
+    soloCurrentImageData = imageData;
+    socket.emit('solo_submit_drawing', { imageData, topic: soloTopic });
+  } else {
+    socket.emit('submit_drawing', imageData);
+  }
 });
 
 // ===== GUESSING =====

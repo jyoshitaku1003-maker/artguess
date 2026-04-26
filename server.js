@@ -365,6 +365,30 @@ function finalizeDisconnect(room, sessionId) {
   checkEndCondition(room);
 }
 
+// ---- solo mode ----
+
+const SOLO_TOPIC_FALLBACK = ['猫', '犬', '魚', '家', '山', '木', '車', '船', '傘', '鳥'];
+
+async function generateSoloTopic() {
+  if (!openai) return SOLO_TOPIC_FALLBACK[Math.floor(Math.random() * SOLO_TOPIC_FALLBACK.length)];
+  try {
+    const resp = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      max_tokens: 20,
+      messages: [{
+        role: 'user',
+        content: 'お絵かきゲームのお題を1つ考えてください。条件：日本語の名詞で1〜6文字、絵に描きやすいもの（動物・食べ物・乗り物・日用品・自然など）、単語のみ返してください。説明不要。',
+      }],
+    });
+    const raw = resp.choices[0].message.content.trim();
+    const m = raw.match(/[ぁ-んァ-ン一-龠A-Za-zー]+/);
+    return m ? m[0] : raw.slice(0, 6);
+  } catch (err) {
+    console.error('[Solo] Topic generation error:', err.message);
+    return SOLO_TOPIC_FALLBACK[Math.floor(Math.random() * SOLO_TOPIC_FALLBACK.length)];
+  }
+}
+
 // ---- socket ----
 
 io.on('connection', (socket) => {
@@ -584,6 +608,56 @@ io.on('connection', (socket) => {
     resetToLobby(room);
     io.to(room.code).emit('game_update', publicState(room));
     io.to(room.code).emit('reset_game');
+  });
+
+  socket.on('solo_start', async () => {
+    const topic = await generateSoloTopic();
+    socket.emit('solo_topic', topic);
+    console.log(`[Solo] Topic: "${topic}" → ${socket.id}`);
+  });
+
+  socket.on('solo_submit_drawing', async ({ imageData, topic }) => {
+    const cleanTopic = String(topic ?? '').trim();
+    if (!cleanTopic || !imageData) {
+      socket.emit('solo_result', { aiGuess: 'わからない', correct: false, topic: cleanTopic });
+      return;
+    }
+    if (!openai) {
+      socket.emit('solo_result', { aiGuess: 'わからない', correct: false, topic: cleanTopic });
+      return;
+    }
+    console.log(`[Solo] Judging drawing for: "${cleanTopic}"`);
+    try {
+      const base64 = imageData.replace(/^data:image\/[^;]+;base64,/, '');
+      const response = await openai.chat.completions.create({
+        model: 'gpt-4o',
+        max_tokens: 30,
+        messages: [{
+          role: 'user',
+          content: [
+            { type: 'image_url', image_url: { url: `data:image/png;base64,${base64}`, detail: 'high' } },
+            { type: 'text', text: 'このイラストが何かを日本語の短い名詞ひとつで答えてください。説明文や言い訳は不要です。' },
+          ],
+        }],
+      });
+      const raw = response.choices[0].message.content.trim();
+      const REFUSAL = /申し訳|できません|すみません|不適切|I'm sorry|I cannot|inappropriate/i;
+      if (REFUSAL.test(raw)) {
+        socket.emit('solo_result', { aiGuess: '（回答できませんでした）', correct: false, topic: cleanTopic, aiFiltered: true });
+        return;
+      }
+      const m = raw.match(/[ぁ-んァ-ン一-龠A-Za-z0-9ー]+/);
+      const aiGuess = m ? m[0] : raw.slice(0, 10);
+      console.log(`[Solo] AI guessed: "${aiGuess}" for "${cleanTopic}"`);
+
+      const judgments = await judgeAnswers(cleanTopic, { ai: aiGuess });
+      const correct = judgments['ai'] ?? isCorrect(aiGuess, cleanTopic);
+
+      socket.emit('solo_result', { aiGuess, correct, topic: cleanTopic });
+    } catch (err) {
+      console.error('[Solo] Error:', err.message);
+      socket.emit('solo_result', { aiGuess: 'わからない', correct: false, topic: cleanTopic });
+    }
   });
 
   socket.on('disconnect', () => {

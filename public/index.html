@@ -30,14 +30,22 @@
       <div class="logo">
         <div class="eyebrow">SYSTEM LINK // HUMAN VS AI</div>
         <h1>お絵かき<br>当てゲーム</h1>
-        <p class="tagline">人間チーム vs AI　先に3問正解で勝ち</p>
+        <p class="tagline">AIに絵を当ててもらおう</p>
       </div>
 
       <div id="join-card" class="card">
         <input id="name-input" type="text" placeholder="名前を入力（10文字以内）" maxlength="10" autocomplete="off">
-        <button id="create-room-btn" class="btn btn-primary btn-block">ルームを作成</button>
-        <div class="divider-text">または</div>
-        <button id="show-rooms-btn" class="btn btn-secondary btn-block">ルームに参加</button>
+        <div id="mode-select">
+          <button id="solo-btn" class="btn btn-primary btn-block">🎨 ひとりで遊ぶ</button>
+          <div class="divider-text">または</div>
+          <button id="multi-btn" class="btn btn-secondary btn-block">👥 みんなで遊ぶ</button>
+        </div>
+        <div id="multi-options" class="hidden">
+          <button id="back-to-mode-btn" class="btn btn-tool" style="margin-bottom:12px;">← 戻る</button>
+          <button id="create-room-btn" class="btn btn-primary btn-block">ルームを作成</button>
+          <div class="divider-text">または</div>
+          <button id="show-rooms-btn" class="btn btn-secondary btn-block">ルームに参加</button>
+        </div>
       </div>
 
       <div id="room-list-card" class="card hidden">
@@ -195,6 +203,55 @@
       <button id="next-round-btn" class="btn btn-primary btn-block hidden">次のラウンドへ →</button>
       <button id="play-again-btn" class="btn btn-success btn-block hidden">もう一度（最初から）</button>
       <button id="leave-room-btn" class="btn btn-tool btn-block hidden">ロビーに戻る</button>
+    </div>
+  </div>
+
+  <!-- ===== SOLO TOPIC ===== -->
+  <div id="screen-solo-topic" class="screen">
+    <div class="container">
+      <div class="card solo-topic-card">
+        <p class="solo-topic-eyebrow">お題</p>
+        <p id="solo-topic-text" class="solo-topic-display">…</p>
+        <p class="muted" style="text-align:center;margin-bottom:16px;">この絵をAIに当ててもらおう！</p>
+        <div id="solo-streak-badge" class="solo-streak-badge hidden">
+          🔥 <span id="solo-streak-count-badge"></span> 連続正解中！
+        </div>
+        <button id="solo-start-draw-btn" class="btn btn-success btn-block" style="margin-top:20px;">✏️ 描き始める！</button>
+        <button id="solo-topic-back-btn" class="btn btn-tool btn-block" style="margin-top:8px;">ロビーに戻る</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== SOLO RESULT ===== -->
+  <div id="screen-solo-result" class="screen">
+    <div class="container">
+      <div id="solo-result-banner" class="winner-banner">
+        <span id="solo-result-text"></span>
+      </div>
+
+      <div class="card topic-reveal">
+        お題は… <strong id="solo-result-topic"></strong>
+      </div>
+
+      <div id="solo-ai-card" class="card ai-card">
+        <h3 class="section-title">🤖 AIの回答</h3>
+        <p id="solo-ai-guess" class="ai-answer"></p>
+      </div>
+
+      <div class="card solo-streak-card">
+        <div class="solo-streak-result">
+          <span class="streak-label">連続正解</span>
+          <span id="solo-streak-num" class="solo-streak-big">0</span>
+          <span class="streak-label">問</span>
+        </div>
+        <p id="solo-best-row" class="solo-best-row"></p>
+      </div>
+
+      <canvas id="solo-result-canvas" width="600" height="480" class="solo-result-canvas"></canvas>
+
+      <button id="solo-next-btn" class="btn btn-primary btn-block hidden">次のお題へ →</button>
+      <button id="solo-retry-btn" class="btn btn-success btn-block hidden">もう一度チャレンジ！</button>
+      <button id="solo-back-btn" class="btn btn-tool btn-block">ロビーに戻る</button>
     </div>
   </div>
 

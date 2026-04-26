@@ -996,3 +996,89 @@ input[type="range"] {
     align-items: stretch;
   }
 }
+
+/* ===== SOLO MODE ===== */
+
+.solo-topic-card {
+  text-align: center;
+  padding: 32px 24px;
+}
+
+.solo-topic-eyebrow {
+  font-size: 0.72rem;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 12px;
+}
+
+.solo-topic-display {
+  font-size: clamp(2rem, 10vw, 3.2rem);
+  font-weight: 700;
+  color: var(--primary);
+  text-shadow: 0 0 28px rgba(141, 255, 181, 0.5);
+  margin-bottom: 12px;
+  line-height: 1.1;
+}
+
+.solo-streak-badge {
+  display: inline-block;
+  background: rgba(255, 200, 60, 0.12);
+  border: 1px solid rgba(255, 200, 60, 0.35);
+  border-radius: 999px;
+  padding: 7px 18px;
+  color: #ffc83c;
+  font-size: 0.9rem;
+  margin-top: 4px;
+}
+
+.solo-streak-card {
+  text-align: center;
+  padding: 24px;
+}
+
+.solo-streak-result {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 8px;
+}
+
+.streak-label {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.solo-streak-big {
+  font-size: 3.6rem;
+  font-weight: 700;
+  color: var(--primary);
+  line-height: 1;
+}
+
+.solo-best-row {
+  color: var(--muted);
+  font-size: 0.82rem;
+  margin-top: 6px;
+}
+
+.solo-result-canvas {
+  width: 100%;
+  max-width: 480px;
+  display: block;
+  margin: 0 auto 16px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+}
+
+#mode-select {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+#multi-options {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
