@@ -8,12 +8,19 @@ const { randomUUID } = require('crypto');
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server);
+const io = new Server(server, {
+  maxHttpBufferSize: 5e6, // 5MB上限（デフォルト1MB）
+});
 
 const openai = process.env.OPENAI_API_KEY
   ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
   : null;
 
+app.use((_, res, next) => {
+  res.setHeader('Content-Security-Policy',
+    "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' ws: wss:");
+  next();
+});
 app.use(express.static(path.join(__dirname, 'public')));
 
 if (openai) {
@@ -28,6 +35,9 @@ const RECONNECT_GRACE_MS = 15000;
 const MAX_PLAYERS = 6;
 const ROOM_CREATE_LIMIT_TIMEZONE = 'Asia/Tokyo';
 const DEV_OVERRIDE_PASSWORD = process.env.DEV_PASSWORD ?? null;
+const MAX_IMAGE_B64_LEN = 7 * 1024 * 1024; // ~5MB バイナリ相当
+const MAX_STROKE_POINTS = 1000;
+const AI_COOLDOWN_MS = 12000; // ソケットごとのAI呼び出し最小間隔（ms）
 
 // ---- room management ----
 
@@ -36,6 +46,8 @@ const playerRoom = new Map();  // socketId -> roomCode
 const sessionRoom = new Map(); // sessionId -> roomCode
 const createdRoomDates = new Map(); // sessionId -> YYYY-MM-DD
 const soloPlayedDates  = new Map(); // sessionId -> YYYY-MM-DD
+const soloCurrentTopics = new Map(); // socketId -> 現在のお題
+const aiLastCallTime    = new Map(); // socketId -> 最終AI呼び出し時刻
 const unlimitedCreatorSessions = new Set();
 
 function generateRoomCode() {
@@ -114,6 +126,14 @@ function markSoloPlayedToday(sessionId) {
 }
 
 // ---- helpers ----
+
+function canCallAI(socketId) {
+  const now = Date.now();
+  const last = aiLastCallTime.get(socketId) || 0;
+  if (now - last < AI_COOLDOWN_MS) return false;
+  aiLastCallTime.set(socketId, now);
+  return true;
+}
 
 function normalizeAnswer(text) {
   if (!text) return '';
@@ -597,6 +617,8 @@ io.on('connection', (socket) => {
   });
 
   socket.on('draw_stroke', (strokeData) => {
+    if (!strokeData || !Array.isArray(strokeData.points)) return;
+    if (strokeData.points.length > MAX_STROKE_POINTS) return;
     const room = getRoom(socket.id);
     if (!room || room.game.phase !== 'drawing') return;
     if (!room.game.players.find((p) => p.id === socket.id)?.isDrawer) return;
@@ -611,9 +633,11 @@ io.on('connection', (socket) => {
   });
 
   socket.on('submit_drawing', (imageData) => {
+    if (!imageData || typeof imageData !== 'string' || imageData.length > MAX_IMAGE_B64_LEN) return;
     const room = getRoom(socket.id);
     if (!room || room.game.phase !== 'drawing') return;
     if (!room.game.players.find((p) => p.id === socket.id)?.isDrawer) return;
+    if (!canCallAI(socket.id)) return;
 
     room.game.drawingData = imageData;
     room.game.phase = 'guessing';
@@ -679,14 +703,21 @@ io.on('connection', (socket) => {
     const topic = await generateSoloTopic(used);
     used.push(topic);
     soloUsedTopics.set(socket.id, used);
+    soloCurrentTopics.set(socket.id, topic);
     socket.emit('solo_topic', topic);
     console.log(`[Solo] Topic: "${topic}" (used: ${used.length}) → ${socket.id}`);
   });
 
-  socket.on('solo_submit_drawing', async ({ imageData, topic }) => {
-    const cleanTopic = String(topic ?? '').trim();
-    if (!cleanTopic || !imageData) {
-      socket.emit('solo_result', { aiGuess: 'わからない', correct: false, topic: cleanTopic });
+  socket.on('solo_submit_drawing', async ({ imageData }) => {
+    if (!imageData || typeof imageData !== 'string' || imageData.length > MAX_IMAGE_B64_LEN) return;
+    if (!canCallAI(socket.id)) {
+      socket.emit('error_msg', '送信が速すぎます。少し待ってから再送信してください。');
+      return;
+    }
+    const cleanTopic = soloCurrentTopics.get(socket.id) || '';
+    soloCurrentTopics.delete(socket.id);
+    if (!cleanTopic) {
+      socket.emit('solo_result', { aiGuess: 'わからない', correct: false, topic: '' });
       return;
     }
     if (!openai) {
@@ -729,6 +760,8 @@ io.on('connection', (socket) => {
 
   socket.on('disconnect', () => {
     soloUsedTopics.delete(socket.id);
+    soloCurrentTopics.delete(socket.id);
+    aiLastCallTime.delete(socket.id);
     const room = getRoom(socket.id);
     if (!room) return;
     playerRoom.delete(socket.id);
