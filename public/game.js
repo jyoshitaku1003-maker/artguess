@@ -1167,6 +1167,7 @@ function doCreateRoom() {
   playJoinSound();
   void unlockAudio();
   myName = name;
+  resetLobbyInfoState();
   socket.emit('create_room', { name, sessionId: mySessionId });
   $('join-card').classList.add('hidden');
   $('lobby-info').classList.remove('hidden');
@@ -1179,6 +1180,7 @@ function doJoinRoom(roomCode) {
   playJoinSound();
   void unlockAudio();
   myName = name;
+  resetLobbyInfoState();
   socket.emit('join_room', { name, roomCode, sessionId: mySessionId });
   $('room-list-card').classList.add('hidden');
   $('lobby-info').classList.remove('hidden');
@@ -1208,6 +1210,7 @@ function returnToEntryLobby() {
   $('play-again-btn').classList.add('hidden');
   topicInputSetupDone = false;
   drawingSetupDone = false;
+  resetLobbyInfoState();
 }
 
 function refreshLobby(state) {
@@ -1230,6 +1233,14 @@ function refreshLobby(state) {
     $('start-btn').classList.add('hidden');
     $('waiting-msg').classList.remove('hidden');
   }
+}
+
+function resetLobbyInfoState() {
+  players = [];
+  phase = 'lobby';
+  lastPhase = 'lobby';
+  amDrawer = false;
+  refreshLobby({ players: [] });
 }
 
 // ===== TOPIC INPUT PHASE =====
