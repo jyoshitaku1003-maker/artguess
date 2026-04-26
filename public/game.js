@@ -60,6 +60,8 @@ let eraserOn      = false;
 const $ = id => document.getElementById(id);
 let devHoldTimer = null;
 let resultsTerminalTimer = null;
+let pendingFinalResults = null;
+let showingFinalResults = false;
 
 // ---- audio ----
 function getAudioContext() {
@@ -226,6 +228,59 @@ function clearResultsTerminalAnimation() {
   if (!resultsTerminalTimer) return;
   clearTimeout(resultsTerminalTimer);
   resultsTerminalTimer = null;
+}
+
+function setResultsView(mode) {
+  const isFinal = mode === 'final';
+  showingFinalResults = isFinal;
+  $('screen-results').classList.toggle('final-summary-active', isFinal);
+  $('final-results-panel').classList.toggle('hidden', !isFinal);
+}
+
+function renderFinalGallery(roundHistory) {
+  const gallery = $('drawings-gallery');
+  if (!roundHistory?.length) {
+    gallery.classList.add('hidden');
+    return;
+  }
+
+  const list = $('drawings-list');
+  list.innerHTML = '';
+  roundHistory.forEach(({ drawing, topic, drawerName }) => {
+    const card = document.createElement('div');
+    card.className = 'drawing-card';
+    const img = document.createElement('img');
+    img.src = drawing;
+    img.alt = topic;
+    const info = document.createElement('div');
+    info.className = 'drawing-card-info';
+    info.innerHTML = `<div class="drawing-card-topic">${esc(topic)}</div>${esc(drawerName)}`;
+    card.appendChild(img);
+    card.appendChild(info);
+    list.appendChild(card);
+  });
+  gallery.classList.remove('hidden');
+}
+
+function showFinalResults() {
+  if (!pendingFinalResults) return;
+  clearResultsTerminalAnimation();
+  setResultsView('final');
+  $('screen-results').scrollTop = 0;
+
+  const { matchWinner, scores, roundHistory } = pendingFinalResults;
+  $('final-results-summary').textContent =
+    matchWinner === 'human'
+      ? '人間チームが最終勝利しました。全ラウンドの記録を確認できます。'
+      : 'AI が最終勝利しました。全ラウンドの記録を確認できます。';
+  $('final-results-score').textContent = `最終スコア ${scores.human} - ${scores.ai}`;
+  renderFinalGallery(roundHistory);
+
+  const me = players.find(p => p.id === myId);
+  const isHost = me?.isHost ?? false;
+  $('next-round-btn').classList.add('hidden');
+  $('play-again-btn').classList.toggle('hidden', !isHost);
+  $('leave-room-btn').classList.remove('hidden');
 }
 
 function animateScoreUpdate(el, nextValue) {
@@ -740,9 +795,12 @@ socket.on('timer_tick', (t) => {
 
 socket.on('game_results', (res) => {
   showScreen('results');
+  $('screen-results').scrollTop = 0;
   const { topic, guesses, aiGuess, aiCorrect, aiFiltered, humanWin, roundWinner,
           scores, isSuddenDeath, gameOver, matchWinner, drawerName, drawing } = res;
   const myGuess = guesses?.[myId];
+  pendingFinalResults = gameOver ? res : null;
+  setResultsView('round');
 
   if (myGuess?.correct) playCorrectSound();
   if (gameOver && matchWinner) playVictorySound(matchWinner === 'human');
@@ -826,35 +884,15 @@ socket.on('game_results', (res) => {
     applyRoundBanner(banner, txt, roundWinner, humanWin);
   }
 
-  // 絵ギャラリー（ゲーム終了時）
-  const gallery = $('drawings-gallery');
-  if (gameOver && res.roundHistory?.length) {
-    const list = $('drawings-list');
-    list.innerHTML = '';
-    res.roundHistory.forEach(({ drawing, topic, drawerName }) => {
-      const card = document.createElement('div');
-      card.className = 'drawing-card';
-      const img = document.createElement('img');
-      img.src = drawing;
-      img.alt = topic;
-      const info = document.createElement('div');
-      info.className = 'drawing-card-info';
-      info.innerHTML = `<div class="drawing-card-topic">${esc(topic)}</div>${esc(drawerName)}`;
-      card.appendChild(img);
-      card.appendChild(info);
-      list.appendChild(card);
-    });
-    gallery.classList.remove('hidden');
-  } else {
-    gallery.classList.add('hidden');
-  }
+  $('drawings-gallery').classList.add('hidden');
 
   // ボタン表示
   const me = players.find(p => p.id === myId);
   const isHost = me?.isHost ?? false;
-  $('next-round-btn').classList.toggle('hidden', !isHost || gameOver);
-  $('play-again-btn').classList.toggle('hidden', !isHost || !gameOver);
-  $('leave-room-btn').classList.toggle('hidden', !gameOver);
+  $('next-round-btn').textContent = gameOver ? '最終結果へ' : '次のラウンドへ';
+  $('next-round-btn').classList.toggle('hidden', gameOver ? false : !isHost);
+  $('play-again-btn').classList.add('hidden');
+  $('leave-room-btn').classList.add('hidden');
 });
 
 function applyRoundBanner(banner, txt, roundWinner, humanWin) {
@@ -866,17 +904,25 @@ function applyRoundBanner(banner, txt, roundWinner, humanWin) {
 }
 
 socket.on('reset_game', () => {
+  pendingFinalResults = null;
+  setResultsView('round');
+  $('drawings-gallery').classList.add('hidden');
   topicInputSetupDone = false;
   drawingSetupDone = false;
   showScreen('lobby');
+  $('next-round-btn').textContent = '次のラウンドへ';
   $('play-again-btn').classList.add('hidden');
   $('next-round-btn').classList.add('hidden');
+  $('leave-room-btn').classList.add('hidden');
   $('join-card').classList.add('hidden');
   $('lobby-info').classList.remove('hidden');
   refreshLobby({ players, phase: 'lobby' });
 });
 
 socket.on('game_aborted', (msg) => {
+  pendingFinalResults = null;
+  setResultsView('round');
+  $('drawings-gallery').classList.add('hidden');
   topicInputSetupDone = false;
   drawingSetupDone = false;
   alert(msg);
@@ -1105,6 +1151,9 @@ $('start-btn').addEventListener('click', () => {
 });
 
 function returnToEntryLobby() {
+  pendingFinalResults = null;
+  setResultsView('round');
+  $('drawings-gallery').classList.add('hidden');
   socket.emit('leave_room');
   myRoomCode = null;
   localStorage.removeItem(ROOM_KEY);
@@ -1401,7 +1450,13 @@ function renderGuessCanvas(imageData) {
 
 // ===== RESULTS =====
 
-$('next-round-btn').addEventListener('click', () => { socket.emit('next_round'); });
+$('next-round-btn').addEventListener('click', () => {
+  if (pendingFinalResults && !showingFinalResults) {
+    showFinalResults();
+    return;
+  }
+  socket.emit('next_round');
+});
 $('play-again-btn').addEventListener('click', () => { socket.emit('play_again'); });
 $('leave-room-btn').addEventListener('click', returnToEntryLobby);
 

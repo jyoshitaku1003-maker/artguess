@@ -862,9 +862,21 @@ input[type="range"] {
   gap: 10px;
 }
 
+#screen-results.final-summary-active {
+  height: auto;
+  min-height: 100dvh;
+  overflow-y: auto;
+}
+
+#screen-results.final-summary-active .container {
+  height: auto;
+  min-height: 100%;
+}
+
 #screen-results .scoreboard,
 #screen-results .results-terminal,
 #screen-results .result-drawing-card,
+#screen-results .final-results-panel,
 #screen-results #drawings-gallery,
 #screen-results #next-round-btn,
 #screen-results #play-again-btn,
@@ -877,6 +889,18 @@ input[type="range"] {
 #screen-results #play-again-btn:not(.hidden),
 #screen-results #leave-room-btn:not(.hidden) {
   margin-top: auto;
+}
+
+#screen-results.final-summary-active .results-terminal,
+#screen-results.final-summary-active .result-drawing-card,
+#screen-results.final-summary-active .sudden-death-banner {
+  display: none;
+}
+
+#screen-results.final-summary-active #next-round-btn:not(.hidden),
+#screen-results.final-summary-active #play-again-btn:not(.hidden),
+#screen-results.final-summary-active #leave-room-btn:not(.hidden) {
+  margin-top: 0;
 }
 
 .results-terminal {
@@ -956,6 +980,35 @@ input[type="range"] {
   background: #f5fff8;
   border: 1px solid rgba(141, 255, 181, 0.2);
   box-shadow: 0 0 0 1px rgba(141, 255, 181, 0.06), 0 16px 40px rgba(0, 0, 0, 0.35);
+}
+
+.final-results-panel {
+  padding: 18px 20px;
+}
+
+.final-results-label {
+  margin-bottom: 10px;
+  color: #d7ff87;
+  font-size: 0.84rem;
+  font-weight: 900;
+  letter-spacing: 0.22em;
+}
+
+.final-results-summary,
+.final-results-score {
+  margin: 0;
+  line-height: 1.7;
+}
+
+.final-results-summary {
+  color: var(--text);
+  font-size: 1.05rem;
+  font-weight: 800;
+}
+
+.final-results-score {
+  margin-top: 8px;
+  color: var(--muted);
 }
 
 .match-winner-banner {
