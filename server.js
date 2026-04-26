@@ -379,16 +379,24 @@ function finalizeDisconnect(room, sessionId) {
 // ---- solo mode ----
 
 const SOLO_TOPIC_FALLBACK = ['猫', '犬', '魚', '家', '山', '木', '車', '船', '傘', '鳥'];
+const soloUsedTopics = new Map(); // socketId -> string[]
 
-async function generateSoloTopic() {
-  if (!openai) return SOLO_TOPIC_FALLBACK[Math.floor(Math.random() * SOLO_TOPIC_FALLBACK.length)];
+async function generateSoloTopic(usedTopics = []) {
+  if (!openai) {
+    const available = SOLO_TOPIC_FALLBACK.filter(t => !usedTopics.includes(t));
+    const pool = available.length > 0 ? available : SOLO_TOPIC_FALLBACK;
+    return pool[Math.floor(Math.random() * pool.length)];
+  }
+  const exclusion = usedTopics.length > 0
+    ? `\n次のお題はすでに使用済みなので絶対に使わないでください：${usedTopics.join('、')}`
+    : '';
   try {
     const resp = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
       max_tokens: 20,
       messages: [{
         role: 'user',
-        content: 'お絵かきゲームのお題を1つ考えてください。条件：日本語の名詞で1〜6文字、絵に描きやすいもの（動物・食べ物・乗り物・日用品・自然など）、単語のみ返してください。説明不要。',
+        content: `お絵かきゲームのお題を1つ考えてください。条件：日本語の名詞で1〜6文字、絵に描きやすいもの（動物・食べ物・乗り物・日用品・自然など）、単語のみ返してください。説明不要。${exclusion}`,
       }],
     });
     const raw = resp.choices[0].message.content.trim();
@@ -634,9 +642,12 @@ io.on('connection', (socket) => {
   });
 
   socket.on('solo_start', async () => {
-    const topic = await generateSoloTopic();
+    const used = soloUsedTopics.get(socket.id) || [];
+    const topic = await generateSoloTopic(used);
+    used.push(topic);
+    soloUsedTopics.set(socket.id, used);
     socket.emit('solo_topic', topic);
-    console.log(`[Solo] Topic: "${topic}" → ${socket.id}`);
+    console.log(`[Solo] Topic: "${topic}" (used: ${used.length}) → ${socket.id}`);
   });
 
   socket.on('solo_submit_drawing', async ({ imageData, topic }) => {
@@ -684,6 +695,7 @@ io.on('connection', (socket) => {
   });
 
   socket.on('disconnect', () => {
+    soloUsedTopics.delete(socket.id);
     const room = getRoom(socket.id);
     if (!room) return;
     playerRoom.delete(socket.id);
