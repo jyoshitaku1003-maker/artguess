@@ -537,7 +537,9 @@ const AVATAR_COLS  = 5;
 function avatarBgStyle(id, size) {
   const col = (id ?? 0) % AVATAR_COLS;
   const row = Math.floor((id ?? 0) / AVATAR_COLS);
-  return `background-image:url('/avatars.png');background-size:${size*AVATAR_COLS}px ${size*2}px;background-position:${-col*size}px ${-row*size}px;background-repeat:no-repeat;`;
+  const xPct = col * 100 / (AVATAR_COLS - 1);
+  const yPct = row * 100;
+  return `background-image:url('/avatars.png');background-size:${AVATAR_COLS * 100}% 200%;background-position:${xPct}% ${yPct}%;background-repeat:no-repeat;`;
 }
 
 function buildAvatarPicker() {

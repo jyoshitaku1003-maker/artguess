@@ -999,8 +999,8 @@ input[type="range"] {
 
 /* ---- avatar picker ---- */
 .avatar-picker {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(5, 52px);
   gap: 8px;
   justify-content: center;
   margin-bottom: 14px;
