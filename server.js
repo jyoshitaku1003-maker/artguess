@@ -27,7 +27,7 @@ const ROUND_SECONDS = 60;
 const RECONNECT_GRACE_MS = 15000;
 const MAX_PLAYERS = 6;
 const ROOM_CREATE_LIMIT_TIMEZONE = 'Asia/Tokyo';
-const DEV_OVERRIDE_PASSWORD = '226';
+const DEV_OVERRIDE_PASSWORD = process.env.DEV_PASSWORD ?? null;
 
 // ---- room management ----
 
@@ -370,7 +370,7 @@ function finalizeDisconnect(room, sessionId) {
 io.on('connection', (socket) => {
 
   socket.on('enable_dev_mode', ({ password, sessionId }) => {
-    if (String(password ?? '') !== DEV_OVERRIDE_PASSWORD) return;
+    if (!DEV_OVERRIDE_PASSWORD || String(password ?? '') !== DEV_OVERRIDE_PASSWORD) return;
     const sid = String(sessionId ?? '').trim();
     if (!sid) return;
     unlimitedCreatorSessions.add(sid);

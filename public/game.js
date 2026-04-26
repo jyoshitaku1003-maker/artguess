@@ -3,8 +3,6 @@
 const socket = io();
 const SESSION_KEY  = 'artguessSessionId';
 const ROOM_KEY     = 'artguessRoomCode';
-const DEV_MODE_KEY = 'artguessDevUnlimited';
-const DEV_PASSWORD = '226';
 const DEV_HOLD_MS  = 1200;
 
 // ---- state ----
@@ -15,7 +13,8 @@ let phase       = 'lobby';
 let amDrawer    = false;
 let mySessionId = localStorage.getItem(SESSION_KEY) || null;
 let myRoomCode  = localStorage.getItem(ROOM_KEY)    || null;
-let devUnlimited = localStorage.getItem(DEV_MODE_KEY) === '1';
+let devUnlimited = false;
+let devPassword  = null;
 let audioCtx    = null;
 let audioReady  = false;
 let masterGain  = null;
@@ -161,22 +160,17 @@ window.addEventListener('touchend', primeAudio, { once: true });
 window.addEventListener('click', primeAudio, { once: true });
 window.addEventListener('keydown', primeAudio, { once: true });
 
-function enableDeveloperUnlimited() {
+function enableDeveloperUnlimited(password) {
   devUnlimited = true;
-  localStorage.setItem(DEV_MODE_KEY, '1');
-  if (!mySessionId) mySessionId = localStorage.getItem(SESSION_KEY) || mySessionId;
-  socket.emit('enable_dev_mode', { password: DEV_PASSWORD, sessionId: mySessionId });
+  devPassword  = password;
+  socket.emit('enable_dev_mode', { password, sessionId: mySessionId });
   alert('開発者モードを有効にしました。ルーム作成制限は無効です。');
 }
 
 function promptDeveloperMode() {
   const password = window.prompt('開発者パスワードを入力してください');
-  if (password === null) return;
-  if (password !== DEV_PASSWORD) {
-    alert('パスワードが違います。');
-    return;
-  }
-  enableDeveloperUnlimited();
+  if (password === null || !password.trim()) return;
+  enableDeveloperUnlimited(password.trim());
 }
 
 function clearDevHoldTimer() {
@@ -227,7 +221,7 @@ function showScreen(name) {
 
 socket.on('connect', () => {
   myId = socket.id;
-  if (devUnlimited) socket.emit('enable_dev_mode', { password: DEV_PASSWORD, sessionId: mySessionId });
+  if (devUnlimited && devPassword) socket.emit('enable_dev_mode', { password: devPassword, sessionId: mySessionId });
   // 再接続：名前・ルームコード・セッションIDが揃っていれば自動復帰
   if (myName && myRoomCode && mySessionId) {
     socket.emit('join_room', { name: myName, roomCode: myRoomCode, sessionId: mySessionId });
@@ -239,7 +233,7 @@ socket.on('joined', ({ sessionId, roomCode }) => {
   myRoomCode  = roomCode;
   localStorage.setItem(SESSION_KEY, sessionId);
   localStorage.setItem(ROOM_KEY, roomCode);
-  if (devUnlimited) socket.emit('enable_dev_mode', { password: DEV_PASSWORD, sessionId });
+  if (devUnlimited && devPassword) socket.emit('enable_dev_mode', { password: devPassword, sessionId });
   playJoinSound();
 });
 
