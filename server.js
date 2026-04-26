@@ -78,7 +78,7 @@ function freshGame() {
 }
 
 function freshRoom(code) {
-  return { code, game: freshGame(), timerInterval: null, disconnectTimers: new Map(), createdBySessionId: null };
+  return { code, game: freshGame(), timerInterval: null, drawingTimerInterval: null, disconnectTimers: new Map(), createdBySessionId: null };
 }
 
 function getRoom(socketId) {
@@ -188,6 +188,27 @@ function startTimer(room) {
       endGuessing(room);
     }
   }, 1000);
+}
+
+function startDrawingTimer(room) {
+  if (room.drawingTimerInterval) clearInterval(room.drawingTimerInterval);
+  let timeLeft = ROUND_SECONDS;
+  io.to(room.code).emit('drawing_timer_tick', timeLeft);
+  room.drawingTimerInterval = setInterval(() => {
+    timeLeft -= 1;
+    io.to(room.code).emit('drawing_timer_tick', timeLeft);
+    if (timeLeft <= 0) {
+      clearInterval(room.drawingTimerInterval);
+      room.drawingTimerInterval = null;
+      if (room.game.phase === 'drawing') {
+        io.to(room.code).emit('drawing_timeout');
+      }
+    }
+  }, 1000);
+}
+
+function clearDrawingTimer(room) {
+  if (room.drawingTimerInterval) { clearInterval(room.drawingTimerInterval); room.drawingTimerInterval = null; }
 }
 
 function checkEndCondition(room) {
@@ -337,6 +358,7 @@ async function endGuessing(room) {
 function resetToLobby(room) {
   const saved = room.game.players.map((p) => ({ ...p, isDrawer: false }));
   if (room.timerInterval) { clearInterval(room.timerInterval); room.timerInterval = null; }
+  clearDrawingTimer(room);
   room.game = freshGame();
   room.game.players = saved;
 }
@@ -595,6 +617,7 @@ io.on('connection', (socket) => {
     game.phase = 'drawing';
     io.to(room.code).emit('game_update', publicState(room));
     io.to(me.id).emit('your_topic', game.topic);
+    startDrawingTimer(room);
   });
 
   socket.on('next_round', async () => {
@@ -639,6 +662,7 @@ io.on('connection', (socket) => {
     if (!room.game.players.find((p) => p.id === socket.id)?.isDrawer) return;
     if (!canCallAI(socket.id)) return;
 
+    clearDrawingTimer(room);
     room.game.drawingData = imageData;
     room.game.phase = 'guessing';
     room.game.guesses = {};

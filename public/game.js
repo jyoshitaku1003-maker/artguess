@@ -327,6 +327,20 @@ socket.on('your_topic', (topic) => {
   $('draw-tools').classList.remove('hidden');
 });
 
+socket.on('drawing_timer_tick', (t) => {
+  const badge = $('drawing-timer-badge');
+  if (!badge) return;
+  badge.textContent = t;
+  badge.classList.toggle('urgent', t <= 10);
+});
+
+socket.on('drawing_timeout', () => {
+  if (!amDrawer) return;
+  const btn = $('submit-drawing-btn');
+  if (!btn || btn.disabled) return;
+  btn.click();
+});
+
 socket.on('draw_stroke', (stroke) => {
   const canvas = $('draw-canvas');
   if (canvas) renderStroke(canvas.getContext('2d'), stroke);

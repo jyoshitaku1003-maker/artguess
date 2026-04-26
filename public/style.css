@@ -516,6 +516,29 @@ input[type="text"]::placeholder {
   color: #f1fff6;
   font-size: 1.25rem;
   font-weight: 900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+
+.drawing-timer-badge {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--primary);
+  background: rgba(0,0,0,0.35);
+  border: 1px solid rgba(141,255,181,0.3);
+  border-radius: 999px;
+  padding: 2px 12px;
+  min-width: 3ch;
+  text-align: center;
+  transition: color 0.2s, border-color 0.2s;
+}
+
+.drawing-timer-badge.urgent {
+  color: var(--danger);
+  border-color: rgba(255,107,127,0.5);
+  animation: pulse 0.6s ease-in-out infinite alternate;
 }
 
 .spectator-banner {
