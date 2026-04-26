@@ -166,9 +166,39 @@ function enableDeveloperUnlimited(password) {
 }
 
 function promptDeveloperMode() {
-  const password = window.prompt('開発者パスワードを入力してください');
-  if (password === null || !password.trim()) return;
-  enableDeveloperUnlimited(password.trim());
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;';
+
+  const box = document.createElement('div');
+  box.style.cssText = 'background:#010a01;border:1px solid rgba(0,255,65,0.3);border-radius:8px;padding:24px;width:100%;max-width:280px;';
+  box.innerHTML =
+    '<p style="color:#00ff41;margin-bottom:14px;font-size:0.88rem;letter-spacing:0.05em;">開発者パスワード</p>' +
+    '<input type="tel" inputmode="numeric" pattern="[0-9]*" autocomplete="off" maxlength="20"' +
+    '  style="width:100%;padding:12px;background:#000;border:1px solid rgba(0,255,65,0.4);color:#00ff41;font-size:1.4rem;letter-spacing:0.4em;text-align:center;border-radius:4px;margin-bottom:14px;outline:none;">' +
+    '<div style="display:flex;gap:8px;">' +
+    '  <button style="flex:1;padding:11px;background:transparent;border:1px solid rgba(0,255,65,0.2);color:#2e6e2e;border-radius:4px;font-size:0.9rem;">キャンセル</button>' +
+    '  <button style="flex:1;padding:11px;background:rgba(0,60,0,0.8);border:1px solid rgba(0,255,65,0.5);color:#00ff41;border-radius:4px;font-size:0.9rem;font-weight:700;">OK</button>' +
+    '</div>';
+
+  overlay.appendChild(box);
+  document.body.appendChild(overlay);
+
+  const input    = box.querySelector('input');
+  const [cancelBtn, okBtn] = box.querySelectorAll('button');
+  input.focus();
+
+  function submit() {
+    const val = input.value.trim();
+    document.body.removeChild(overlay);
+    if (!val) return;
+    enableDeveloperUnlimited(val);
+  }
+  function close() { document.body.removeChild(overlay); }
+
+  okBtn.addEventListener('click', submit);
+  cancelBtn.addEventListener('click', close);
+  overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+  input.addEventListener('keydown', e => { if (e.key === 'Enter') submit(); });
 }
 
 socket.on('dev_mode_result', (success) => {
