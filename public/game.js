@@ -209,6 +209,19 @@ function appendResultTerminalLine(linesEl, text, className = '') {
   linesEl.appendChild(line);
 }
 
+const RESULTS_TERMINAL_TEXT_DELAY_MS = 1500;
+const RESULTS_TERMINAL_SPACER_DELAY_MS = 700;
+const RESULTS_TERMINAL_CHAR_DELAY_MS = 34;
+
+function getResultsTerminalCharDelay(ch) {
+  if (/[。、]/.test(ch)) return 140;
+  if (/[,.]/.test(ch)) return 90;
+  if (/\s/.test(ch)) return 18;
+  if (/[:>\-[\]]/.test(ch)) return 24;
+  if (/[A-Za-z0-9]/.test(ch)) return 22;
+  return RESULTS_TERMINAL_CHAR_DELAY_MS;
+}
+
 function clearResultsTerminalAnimation() {
   if (!resultsTerminalTimer) return;
   clearTimeout(resultsTerminalTimer);
@@ -268,9 +281,29 @@ function renderResultsTerminal(res) {
       return;
     }
     const { text, className } = queuedLines[index++];
-    appendResultTerminalLine(linesEl, text, className);
+    const line = document.createElement('div');
+    line.className = `howto-line result-line${className ? ` ${className}` : ''}`;
+    linesEl.appendChild(line);
     linesEl.scrollTop = linesEl.scrollHeight;
-    resultsTerminalTimer = setTimeout(paintNextLine, text ? 150 : 80);
+
+    if (!text) {
+      resultsTerminalTimer = setTimeout(paintNextLine, RESULTS_TERMINAL_SPACER_DELAY_MS);
+      return;
+    }
+
+    let charIndex = 0;
+    function typeNextChar() {
+      if (charIndex >= text.length) {
+        resultsTerminalTimer = setTimeout(paintNextLine, RESULTS_TERMINAL_TEXT_DELAY_MS);
+        return;
+      }
+      const ch = text[charIndex++];
+      line.textContent += ch;
+      linesEl.scrollTop = linesEl.scrollHeight;
+      resultsTerminalTimer = setTimeout(typeNextChar, getResultsTerminalCharDelay(ch));
+    }
+
+    typeNextChar();
   }
 
   paintNextLine();
@@ -693,7 +726,7 @@ socket.on('timer_tick', (t) => {
 socket.on('game_results', (res) => {
   showScreen('results');
   const { topic, guesses, aiGuess, aiCorrect, aiFiltered, humanWin, roundWinner,
-          scores, isSuddenDeath, gameOver, matchWinner, drawerName } = res;
+          scores, isSuddenDeath, gameOver, matchWinner, drawerName, drawing } = res;
   const myGuess = guesses?.[myId];
 
   if (myGuess?.correct) playCorrectSound();
@@ -726,6 +759,19 @@ socket.on('game_results', (res) => {
   // Round result banner
   $('result-topic').textContent  = topic;
   $('result-drawer').textContent = `（${drawerName} が描きました）`;
+
+  const drawingCard = $('result-drawing-card');
+  const drawingImage = $('result-drawing-image');
+  const drawingMeta = $('result-drawing-meta');
+  if (drawing) {
+    drawingImage.src = drawing;
+    drawingMeta.textContent = drawerName ? `${drawerName} のラウンド記録` : '';
+    drawingCard.classList.remove('hidden');
+  } else {
+    drawingImage.removeAttribute('src');
+    drawingMeta.textContent = '';
+    drawingCard.classList.add('hidden');
+  }
 
   $('ai-guess-text').textContent = aiGuess || '（回答なし）';
   const aiCard = $('ai-result-card');

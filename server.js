@@ -377,6 +377,7 @@ async function emitResults(room) {
     topic: game.topic, guesses: game.guesses,
     aiGuess: aiFiltered ? '（回答できませんでした）' : game.aiGuess,
     aiReason: game.aiReason,
+    drawing: game.drawingData,
     aiCorrect, aiFiltered, humanWin, roundWinner, scores: { ...game.scores },
     isSuddenDeath: game.isSuddenDeath, gameOver, matchWinner,
     drawerName: drawer?.name ?? '',
