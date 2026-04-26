@@ -126,7 +126,7 @@ function publicState(room) {
   return {
     roomCode: code,
     phase: game.phase,
-    players: game.players.map(({ id, name, isHost, isDrawer }) => ({ id, name, isHost, isDrawer })),
+    players: game.players.map(({ id, name, isHost, isDrawer, avatarId }) => ({ id, name, isHost, isDrawer, avatarId: avatarId ?? 0 })),
     timeLeft: game.timeLeft,
     guessedCount: guessedCount(game),
     guesserCount: guesserCount(game),
@@ -395,7 +395,7 @@ io.on('connection', (socket) => {
     socket.emit('room_list', list);
   });
 
-  socket.on('create_room', ({ name, sessionId }) => {
+  socket.on('create_room', ({ name, sessionId, avatarId }) => {
     // 再接続チェック
     const existingRoomCode = sessionId ? sessionRoom.get(sessionId) : null;
     const existingRoom = existingRoomCode ? rooms.get(existingRoomCode) : null;
@@ -416,7 +416,7 @@ io.on('connection', (socket) => {
     const code = generateRoomCode();
     const room = freshRoom(code);
 
-    room.game.players.push({ id: socket.id, sessionId: sid, name: trimmed, isHost: true, isDrawer: false });
+    room.game.players.push({ id: socket.id, sessionId: sid, name: trimmed, isHost: true, isDrawer: false, avatarId: Number(avatarId ?? 0) });
     room.createdBySessionId = sid;
     rooms.set(code, room);
     socket.join(code);
@@ -429,7 +429,7 @@ io.on('connection', (socket) => {
     console.log(`[Room] Created ${code} by ${trimmed}`);
   });
 
-  socket.on('join_room', ({ name, roomCode, sessionId }) => {
+  socket.on('join_room', ({ name, roomCode, sessionId, avatarId }) => {
     const code = String(roomCode ?? '').trim().toUpperCase();
     const room = rooms.get(code);
 
@@ -458,7 +458,7 @@ io.on('connection', (socket) => {
     if (!trimmed) return;
 
     const sid = sessionId || randomUUID();
-    room.game.players.push({ id: socket.id, sessionId: sid, name: trimmed, isHost: false, isDrawer: false });
+    room.game.players.push({ id: socket.id, sessionId: sid, name: trimmed, isHost: false, isDrawer: false, avatarId: Number(avatarId ?? 0) });
     socket.join(code);
     playerRoom.set(socket.id, code);
     sessionRoom.set(sid, code);

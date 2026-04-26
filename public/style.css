@@ -996,3 +996,37 @@ input[type="range"] {
     align-items: stretch;
   }
 }
+
+/* ---- avatar picker ---- */
+.avatar-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  margin-bottom: 14px;
+}
+.avatar-opt {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
+  transition: transform 0.12s, border-color 0.15s, box-shadow 0.15s;
+}
+.avatar-opt:hover { transform: scale(1.12); border-color: rgba(0,255,65,0.4); }
+.avatar-opt.selected {
+  border-color: #00ff41;
+  box-shadow: 0 0 10px rgba(0,255,65,0.6);
+  transform: scale(1.12);
+}
+
+/* ---- avatar in player list ---- */
+.avatar-mini {
+  display: inline-block;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
