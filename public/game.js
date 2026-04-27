@@ -189,12 +189,6 @@ function playVictorySound(victory) {
   });
 }
 
-function playKeyClick() {
-  playWithCooldown('key', 20, () => {
-    playTone({ freq: 520, duration: 0.022, type: 'triangle', volume: 0.038, attack: 0.001, release: 0.018 });
-  });
-}
-
 function playButtonClick() {
   playTone({ freq: 680, duration: 0.04, type: 'triangle', volume: 0.055, attack: 0.002, release: 0.032 });
 }
@@ -276,7 +270,6 @@ function playTerminalLines(linesEl, queuedLines, onComplete = () => {}) {
       const ch = text[charIndex++];
       line.textContent += ch;
       linesEl.scrollTop = linesEl.scrollHeight;
-      playKeyClick();
       resultsTerminalTimer = setTimeout(typeNextChar, getResultsTerminalCharDelay(ch));
     }
 
@@ -466,7 +459,6 @@ function playSoloTerminalLines(linesEl, queuedLines) {
       }
       line.textContent += text[charIndex++];
       linesEl.scrollTop = linesEl.scrollHeight;
-      playKeyClick();
       soloTerminalTimer = setTimeout(typeNextChar, getResultsTerminalCharDelay(text[charIndex - 1]));
     }
     typeNextChar();
@@ -781,7 +773,6 @@ function initHowtoTerminal() {
     if (charIdx < src.length) {
       segEl.textContent += src[charIdx++];
       linesEl.scrollTop = linesEl.scrollHeight;
-      playKeyClick();
       timer = setTimeout(tick, charDelay(src[charIdx - 1], !!seg.kana));
     } else if (seg.kana) {
       // 変換：ハイライト → 漢字に置換
