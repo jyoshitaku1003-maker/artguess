@@ -505,13 +505,24 @@ window.addEventListener('touchend', primeAudio, { once: true });
 window.addEventListener('click', primeAudio, { once: true });
 window.addEventListener('keydown', primeAudio, { once: true });
 
-document.addEventListener('click', (e) => {
-  if (!e.target.closest('.btn')) return;
+let _lastBtnSoundMs = 0;
+function fireBtnSound() {
+  const now = Date.now();
+  if (now - _lastBtnSoundMs < 300) return;
+  _lastBtnSoundMs = now;
   const ctx = getAudioContext();
   const output = getMasterGain();
   if (!ctx || !output) return;
   audioReady = true;
   ctx.resume().then(() => playButtonClick());
+}
+// touchend: iOS では click より確実なユーザージェスチャー
+document.addEventListener('touchend', (e) => {
+  if (e.target.closest('.btn')) fireBtnSound();
+}, { passive: true });
+// click: デスクトップ用（touchend+clickの重複は300msで除外）
+document.addEventListener('click', (e) => {
+  if (e.target.closest('.btn')) fireBtnSound();
 });
 
 function enableDeveloperUnlimited(password) {
