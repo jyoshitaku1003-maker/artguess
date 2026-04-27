@@ -190,15 +190,13 @@ function playVictorySound(victory) {
 }
 
 function playKeyClick() {
-  playWithCooldown('key', 18, () => {
-    playTone({ freq: 160, duration: 0.018, type: 'square', volume: 0.022, attack: 0.001, release: 0.012 });
-    playTone({ freq: 2800, duration: 0.01, type: 'square', volume: 0.014, attack: 0.001, release: 0.006, delay: 0.002 });
+  playWithCooldown('key', 20, () => {
+    playTone({ freq: 520, duration: 0.022, type: 'triangle', volume: 0.038, attack: 0.001, release: 0.018 });
   });
 }
 
 function playButtonClick() {
-  playTone({ freq: 900, duration: 0.035, type: 'sine', volume: 0.055, attack: 0.002, release: 0.028 });
-  playTone({ freq: 450, duration: 0.025, type: 'square', volume: 0.022, attack: 0.001, release: 0.018 });
+  playTone({ freq: 680, duration: 0.04, type: 'triangle', volume: 0.055, attack: 0.002, release: 0.032 });
 }
 
 function getWinnerLabel({ aiFiltered, roundWinner, humanWin, gameOver, matchWinner }) {
