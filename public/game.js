@@ -62,6 +62,11 @@ let showingFinalResults = false;
 let audioCtx = null;
 let masterGain = null;
 let lastButtonSoundAt = 0;
+let bgmGain = null;
+let bgmTimer = null;
+let bgmMode = null;
+let bgmNextNoteTime = 0;
+let bgmStep = 0;
 
 function getAudioContext() {
   const Ctx = window.AudioContext || window.webkitAudioContext;
@@ -79,6 +84,17 @@ function getMasterGain() {
     masterGain.connect(ctx.destination);
   }
   return masterGain;
+}
+
+function getBgmGain() {
+  const ctx = getAudioContext();
+  if (!ctx) return null;
+  if (!bgmGain) {
+    bgmGain = ctx.createGain();
+    bgmGain.gain.value = 0.0001;
+    bgmGain.connect(ctx.destination);
+  }
+  return bgmGain;
 }
 
 function warmAudioGraph(ctx, output) {
@@ -170,6 +186,7 @@ function triggerButtonSound(kind = 'forward') {
     } else {
       playButtonTapTone();
     }
+    syncBgmForState();
   };
 
   if (ctx.state === 'suspended') {
@@ -178,6 +195,213 @@ function triggerButtonSound(kind = 'forward') {
   }
 
   play();
+}
+
+const BGM_LOOKAHEAD_MS = 120;
+const BGM_SCHEDULE_AHEAD_SEC = 0.45;
+const GAME_BGM_STEP_SEC = 60 / 92 / 2;
+const RESULT_BGM_STEP_SEC = 60 / 76 / 2;
+
+function midiToHz(note) {
+  return 440 * Math.pow(2, (note - 69) / 12);
+}
+
+function scheduleBgmPluck(note, start, duration, volume, type = 'triangle') {
+  const ctx = getAudioContext();
+  const output = getBgmGain();
+  if (!ctx || !output || note == null) return;
+
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  const filter = ctx.createBiquadFilter();
+
+  osc.type = type;
+  osc.frequency.setValueAtTime(midiToHz(note), start);
+  filter.type = 'lowpass';
+  filter.frequency.setValueAtTime(type === 'sine' ? 900 : 1800, start);
+  gain.gain.setValueAtTime(0.0001, start);
+  gain.gain.linearRampToValueAtTime(volume, start + 0.01);
+  gain.gain.exponentialRampToValueAtTime(Math.max(volume * 0.18, 0.0001), start + duration * 0.45);
+  gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
+
+  osc.connect(filter);
+  filter.connect(gain);
+  gain.connect(output);
+
+  osc.start(start);
+  osc.stop(start + duration + 0.03);
+}
+
+function scheduleBgmPad(notes, start, duration, volume) {
+  const ctx = getAudioContext();
+  const output = getBgmGain();
+  if (!ctx || !output || !notes?.length) return;
+
+  notes.forEach((note, index) => {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    const filter = ctx.createBiquadFilter();
+
+    osc.type = index % 2 === 0 ? 'triangle' : 'sine';
+    osc.frequency.setValueAtTime(midiToHz(note), start);
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(1100, start);
+    gain.gain.setValueAtTime(0.0001, start);
+    gain.gain.linearRampToValueAtTime(volume / notes.length, start + 0.12);
+    gain.gain.linearRampToValueAtTime((volume / notes.length) * 0.75, start + duration * 0.65);
+    gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
+
+    osc.connect(filter);
+    filter.connect(gain);
+    gain.connect(output);
+
+    osc.start(start);
+    osc.stop(start + duration + 0.05);
+  });
+}
+
+function scheduleBgmPulse(note, start, volume) {
+  const ctx = getAudioContext();
+  const output = getBgmGain();
+  if (!ctx || !output || note == null) return;
+
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  const filter = ctx.createBiquadFilter();
+
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(midiToHz(note), start);
+  osc.frequency.exponentialRampToValueAtTime(midiToHz(note - 12), start + 0.12);
+  filter.type = 'lowpass';
+  filter.frequency.setValueAtTime(420, start);
+  gain.gain.setValueAtTime(0.0001, start);
+  gain.gain.linearRampToValueAtTime(volume, start + 0.005);
+  gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.14);
+
+  osc.connect(filter);
+  filter.connect(gain);
+  gain.connect(output);
+
+  osc.start(start);
+  osc.stop(start + 0.16);
+}
+
+function scheduleGameplayStep(time, step) {
+  const localStep = step % 16;
+  const chordIndex = Math.floor(localStep / 4);
+  const chords = [
+    [52, 55, 59],
+    [48, 52, 55],
+    [50, 57, 60],
+    [47, 50, 54],
+  ];
+  const bass = [40, null, 47, null, 43, null, 47, 50, 38, null, 45, null, 43, null, 47, null];
+  const lead = [71, null, 74, 76, 74, null, 71, 69, 67, null, 69, 71, 74, null, 71, 67];
+  const echo = [null, 83, null, 81, null, 79, null, 78, null, 76, null, 74, null, 76, null, 78];
+
+  if (localStep % 4 === 0) {
+    scheduleBgmPad(chords[chordIndex], time, GAME_BGM_STEP_SEC * 4.2, 0.042);
+  }
+  if (localStep % 2 === 0) {
+    scheduleBgmPulse(28, time, 0.04);
+  }
+  scheduleBgmPluck(bass[localStep], time, GAME_BGM_STEP_SEC * 0.9, 0.05, 'triangle');
+  scheduleBgmPluck(lead[localStep], time + 0.01, GAME_BGM_STEP_SEC * 0.62, 0.03, 'triangle');
+  scheduleBgmPluck(echo[localStep], time + 0.05, GAME_BGM_STEP_SEC * 0.45, 0.012, 'sine');
+}
+
+function scheduleResultStep(time, step) {
+  const localStep = step % 16;
+  const chordIndex = Math.floor(localStep / 4);
+  const chords = [
+    [55, 59, 62],
+    [52, 55, 60],
+    [57, 60, 64],
+    [50, 53, 57],
+  ];
+  const bass = [43, null, null, 43, 40, null, null, 40, 45, null, null, 45, 38, null, 40, null];
+  const bell = [74, 76, 79, null, 76, 74, 72, null, 79, 81, 83, null, 79, 76, 74, null];
+
+  if (localStep % 4 === 0) {
+    scheduleBgmPad(chords[chordIndex], time, RESULT_BGM_STEP_SEC * 4.6, 0.035);
+  }
+  if (localStep === 0 || localStep === 8) {
+    scheduleBgmPulse(31, time, 0.026);
+  }
+  scheduleBgmPluck(bass[localStep], time, RESULT_BGM_STEP_SEC * 1.1, 0.038, 'sine');
+  scheduleBgmPluck(bell[localStep], time + 0.015, RESULT_BGM_STEP_SEC * 0.7, 0.024, 'triangle');
+}
+
+function scheduleBgmLoop() {
+  const ctx = getAudioContext();
+  const output = getBgmGain();
+  if (!ctx || !output || !bgmMode) return;
+  if (ctx.state !== 'running') return;
+
+  const stepDuration = bgmMode === 'results' ? RESULT_BGM_STEP_SEC : GAME_BGM_STEP_SEC;
+  while (bgmNextNoteTime < ctx.currentTime + BGM_SCHEDULE_AHEAD_SEC) {
+    if (bgmMode === 'results') {
+      scheduleResultStep(bgmNextNoteTime, bgmStep);
+    } else {
+      scheduleGameplayStep(bgmNextNoteTime, bgmStep);
+    }
+    bgmNextNoteTime += stepDuration;
+    bgmStep += 1;
+  }
+}
+
+function stopBgm() {
+  if (bgmTimer) {
+    clearInterval(bgmTimer);
+    bgmTimer = null;
+  }
+  bgmMode = null;
+  bgmStep = 0;
+  bgmNextNoteTime = 0;
+
+  const ctx = getAudioContext();
+  const output = getBgmGain();
+  if (!ctx || !output) return;
+  output.gain.cancelScheduledValues(ctx.currentTime);
+  output.gain.setValueAtTime(Math.max(output.gain.value, 0.0001), ctx.currentTime);
+  output.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.18);
+}
+
+function startBgm(mode) {
+  const ctx = getAudioContext();
+  const output = getBgmGain();
+  if (!ctx || !output) return;
+  if (ctx.state !== 'running') return;
+
+  if (bgmTimer) {
+    clearInterval(bgmTimer);
+    bgmTimer = null;
+  }
+
+  bgmMode = mode;
+  bgmStep = 0;
+  bgmNextNoteTime = ctx.currentTime + 0.03;
+  output.gain.cancelScheduledValues(ctx.currentTime);
+  output.gain.setValueAtTime(Math.max(output.gain.value, 0.0001), ctx.currentTime);
+  output.gain.exponentialRampToValueAtTime(mode === 'results' ? 0.05 : 0.065, ctx.currentTime + 0.25);
+  scheduleBgmLoop();
+  bgmTimer = setInterval(scheduleBgmLoop, BGM_LOOKAHEAD_MS);
+}
+
+function syncBgmForState(screenName = null) {
+  const activeScreen = screenName || document.querySelector('.screen.active')?.id?.replace('screen-', '') || 'lobby';
+  const shouldPlayFinal = activeScreen === 'results' && showingFinalResults;
+  const shouldPlayGameplay = !soloMode && !shouldPlayFinal && ['topic', 'drawing', 'guessing', 'results'].includes(activeScreen);
+
+  if (shouldPlayFinal) {
+    if (bgmMode !== 'results') startBgm('results');
+    return;
+  }
+  if (shouldPlayGameplay) {
+    if (bgmMode !== 'gameplay') startBgm('gameplay');
+    return;
+  }
+  if (bgmMode) stopBgm();
 }
 
 // ---- URL招待パラメータ ----
@@ -318,6 +542,7 @@ function showFinalResults() {
   clearResultsTerminalAnimation();
   setResultsView('final');
   $('screen-results').scrollTop = 0;
+  syncBgmForState('results');
 
   const { matchWinner, scores, roundHistory } = pendingFinalResults;
   const linesEl = $('final-results-terminal-lines');
@@ -804,6 +1029,7 @@ function showScreen(name) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   const s = $(`screen-${name}`);
   if (s) s.classList.add('active');
+  syncBgmForState(name);
 }
 
 // ===== SOCKET EVENTS =====
@@ -907,6 +1133,7 @@ socket.on('game_results', (res) => {
   const myGuess = guesses?.[myId];
   pendingFinalResults = gameOver ? res : null;
   setResultsView('round');
+  syncBgmForState('results');
 
 
   // Sudden death banner (show when in SD and match not yet over)
