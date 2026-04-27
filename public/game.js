@@ -123,7 +123,38 @@ function playButtonTapTone() {
   oscB.stop(start + 0.08);
 }
 
-function triggerButtonSound() {
+function playBackButtonTone() {
+  const ctx = getAudioContext();
+  const output = getMasterGain();
+  if (!ctx || !output) return;
+
+  const start = ctx.currentTime + 0.001;
+  const oscA = ctx.createOscillator();
+  const oscB = ctx.createOscillator();
+  const gain = ctx.createGain();
+
+  oscA.type = 'triangle';
+  oscB.type = 'sine';
+  oscA.frequency.setValueAtTime(720, start);
+  oscA.frequency.exponentialRampToValueAtTime(460, start + 0.09);
+  oscB.frequency.setValueAtTime(540, start + 0.003);
+  oscB.frequency.exponentialRampToValueAtTime(320, start + 0.09);
+
+  gain.gain.setValueAtTime(0.0001, start);
+  gain.gain.linearRampToValueAtTime(0.06, start + 0.005);
+  gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.11);
+
+  oscA.connect(gain);
+  oscB.connect(gain);
+  gain.connect(output);
+
+  oscA.start(start);
+  oscB.start(start);
+  oscA.stop(start + 0.12);
+  oscB.stop(start + 0.12);
+}
+
+function triggerButtonSound(kind = 'forward') {
   const now = Date.now();
   if (now - lastButtonSoundAt < 90) return;
   lastButtonSoundAt = now;
@@ -134,7 +165,11 @@ function triggerButtonSound() {
 
   const play = () => {
     warmAudioGraph(ctx, output);
-    playButtonTapTone();
+    if (kind === 'back') {
+      playBackButtonTone();
+    } else {
+      playButtonTapTone();
+    }
   };
 
   if (ctx.state === 'suspended') {
@@ -1038,7 +1073,7 @@ $('multi-btn').addEventListener('click', () => {
   $('multi-options').classList.remove('hidden');
 });
 $('back-to-mode-btn').addEventListener('click', () => {
-  triggerButtonSound();
+  triggerButtonSound('back');
   $('multi-options').classList.add('hidden');
   $('mode-select').classList.remove('hidden');
 });
@@ -1047,7 +1082,7 @@ $('name-input').addEventListener('keydown', e => { if (e.key === 'Enter') { if (
 $('show-rooms-btn').addEventListener('click', showRoomList);
 $('lobby-back-btn').addEventListener('click', returnToEntryLobby);
 $('back-to-lobby-btn').addEventListener('click', () => {
-  triggerButtonSound();
+  triggerButtonSound('back');
   $('room-list-card').classList.add('hidden');
   $('join-card').classList.remove('hidden');
 });
@@ -1075,7 +1110,7 @@ socket.on('solo_session_result', (ok) => {
 });
 
 function exitSoloMode() {
-  triggerButtonSound();
+  triggerButtonSound('back');
   clearSoloTerminalAnimation();
   soloMode = false;
   soloStreak = 0;
@@ -1262,7 +1297,7 @@ $('start-btn').addEventListener('click', () => {
 });
 
 function returnToEntryLobby() {
-  triggerButtonSound();
+  triggerButtonSound('back');
   pendingFinalResults = null;
   setResultsView('round');
   $('drawings-gallery').classList.add('hidden');
