@@ -1154,14 +1154,7 @@ socket.on('solo_result', ({ aiGuess, correct, topic, aiFiltered }) => {
     playVictorySound(false);
   }
 
-  $('solo-result-topic').textContent = topic;
-  $('solo-ai-guess').textContent = aiGuess || '（回答なし）';
-
   renderSoloResultTerminal({ aiGuess, correct, topic, aiFiltered, streak: soloStreak, prevStreak });
-
-  const aiCard = $('solo-ai-card');
-  aiCard.classList.toggle('correct-card', !!correct);
-  aiCard.classList.toggle('wrong-card', !correct && !aiFiltered);
 
   const banner = $('solo-result-banner');
   const txt = $('solo-result-text');
