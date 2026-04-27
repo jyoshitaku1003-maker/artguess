@@ -71,6 +71,389 @@ let resultsTerminalTimer = null;
 let soloTerminalTimer = null;
 let pendingFinalResults = null;
 let showingFinalResults = false;
+let audioCtx = null;
+let masterGain = null;
+let lastButtonSoundAt = 0;
+let bgmGain = null;
+let bgmTimer = null;
+let bgmMode = null;
+let bgmNextNoteTime = 0;
+let bgmStep = 0;
+
+function getAudioContext() {
+  const Ctx = window.AudioContext || window.webkitAudioContext;
+  if (!Ctx) return null;
+  if (!audioCtx) audioCtx = new Ctx();
+  return audioCtx;
+}
+
+function getMasterGain() {
+  const ctx = getAudioContext();
+  if (!ctx) return null;
+  if (!masterGain) {
+    masterGain = ctx.createGain();
+    masterGain.gain.value = 0.2;
+    masterGain.connect(ctx.destination);
+  }
+  return masterGain;
+}
+
+function getBgmGain() {
+  const ctx = getAudioContext();
+  if (!ctx) return null;
+  if (!bgmGain) {
+    bgmGain = ctx.createGain();
+    bgmGain.gain.value = 0.0001;
+    bgmGain.connect(ctx.destination);
+  }
+  return bgmGain;
+}
+
+function warmAudioGraph(ctx, output) {
+  if (!ctx || !output) return;
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = 'sine';
+  osc.frequency.value = 440;
+  gain.gain.value = 0.00001;
+  osc.connect(gain);
+  gain.connect(output);
+  osc.start();
+  osc.stop(ctx.currentTime + 0.01);
+}
+
+function playButtonTapTone() {
+  const ctx = getAudioContext();
+  const output = getMasterGain();
+  if (!ctx || !output) return;
+
+  const start = ctx.currentTime + 0.001;
+  const oscA = ctx.createOscillator();
+  const oscB = ctx.createOscillator();
+  const gain = ctx.createGain();
+  const filter = ctx.createBiquadFilter();
+
+  oscA.type = 'square';
+  oscB.type = 'sawtooth';
+  oscA.frequency.setValueAtTime(920, start);
+  oscA.frequency.exponentialRampToValueAtTime(610, start + 0.045);
+  oscB.frequency.setValueAtTime(460, start + 0.002);
+  oscB.frequency.exponentialRampToValueAtTime(280, start + 0.045);
+  filter.type = 'bandpass';
+  filter.frequency.setValueAtTime(1450, start);
+  filter.Q.value = 1.6;
+
+  gain.gain.setValueAtTime(0.0001, start);
+  gain.gain.linearRampToValueAtTime(0.12, start + 0.003);
+  gain.gain.exponentialRampToValueAtTime(0.018, start + 0.028);
+  gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.06);
+
+  oscA.connect(filter);
+  oscB.connect(filter);
+  filter.connect(gain);
+  gain.connect(output);
+
+  oscA.start(start);
+  oscB.start(start);
+  oscA.stop(start + 0.065);
+  oscB.stop(start + 0.065);
+}
+
+function playBackButtonTone() {
+  const ctx = getAudioContext();
+  const output = getMasterGain();
+  if (!ctx || !output) return;
+
+  const start = ctx.currentTime + 0.001;
+  const oscA = ctx.createOscillator();
+  const oscB = ctx.createOscillator();
+  const gain = ctx.createGain();
+
+  oscA.type = 'triangle';
+  oscB.type = 'sine';
+  oscA.frequency.setValueAtTime(760, start);
+  oscA.frequency.exponentialRampToValueAtTime(380, start + 0.11);
+  oscB.frequency.setValueAtTime(510, start + 0.003);
+  oscB.frequency.exponentialRampToValueAtTime(250, start + 0.11);
+
+  gain.gain.setValueAtTime(0.0001, start);
+  gain.gain.linearRampToValueAtTime(0.1, start + 0.005);
+  gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.13);
+
+  oscA.connect(gain);
+  oscB.connect(gain);
+  gain.connect(output);
+
+  oscA.start(start);
+  oscB.start(start);
+  oscA.stop(start + 0.14);
+  oscB.stop(start + 0.14);
+}
+
+function triggerButtonSound(kind = 'forward') {
+  const now = Date.now();
+  if (now - lastButtonSoundAt < 90) return;
+  lastButtonSoundAt = now;
+
+  const ctx = getAudioContext();
+  const output = getMasterGain();
+  if (!ctx || !output) return;
+
+  const play = () => {
+    warmAudioGraph(ctx, output);
+    if (kind === 'back') {
+      playBackButtonTone();
+    } else {
+      playButtonTapTone();
+    }
+    syncBgmForState();
+  };
+
+  if (ctx.state === 'suspended') {
+    ctx.resume().then(play).catch(() => {});
+    return;
+  }
+
+  play();
+}
+
+const BGM_LOOKAHEAD_MS = 120;
+const BGM_SCHEDULE_AHEAD_SEC = 0.45;
+const GAME_BGM_STEP_SEC = 60 / 68 / 2;
+const RESULT_BGM_STEP_SEC = 60 / 96 / 2;
+
+function midiToHz(note) {
+  return 440 * Math.pow(2, (note - 69) / 12);
+}
+
+function scheduleBgmPluck(note, start, duration, volume, type = 'triangle') {
+  const ctx = getAudioContext();
+  const output = getBgmGain();
+  if (!ctx || !output || note == null) return;
+
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  const filter = ctx.createBiquadFilter();
+
+  osc.type = type;
+  osc.frequency.setValueAtTime(midiToHz(note), start);
+  filter.type = 'lowpass';
+  filter.frequency.setValueAtTime(type === 'sine' ? 1200 : 2200, start);
+  gain.gain.setValueAtTime(0.0001, start);
+  gain.gain.linearRampToValueAtTime(volume, start + 0.01);
+  gain.gain.exponentialRampToValueAtTime(Math.max(volume * 0.26, 0.0001), start + duration * 0.5);
+  gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
+
+  osc.connect(filter);
+  filter.connect(gain);
+  gain.connect(output);
+
+  osc.start(start);
+  osc.stop(start + duration + 0.03);
+}
+
+function scheduleBgmPad(notes, start, duration, volume) {
+  const ctx = getAudioContext();
+  const output = getBgmGain();
+  if (!ctx || !output || !notes?.length) return;
+
+  notes.forEach((note, index) => {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    const filter = ctx.createBiquadFilter();
+
+    osc.type = index % 2 === 0 ? 'triangle' : 'sine';
+    osc.frequency.setValueAtTime(midiToHz(note), start);
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(1650, start);
+    gain.gain.setValueAtTime(0.0001, start);
+    gain.gain.linearRampToValueAtTime(volume / notes.length, start + 0.22);
+    gain.gain.linearRampToValueAtTime((volume / notes.length) * 0.82, start + duration * 0.7);
+    gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
+
+    osc.connect(filter);
+    filter.connect(gain);
+    gain.connect(output);
+
+    osc.start(start);
+    osc.stop(start + duration + 0.05);
+  });
+}
+
+function scheduleBgmPulse(note, start, volume) {
+  const ctx = getAudioContext();
+  const output = getBgmGain();
+  if (!ctx || !output || note == null) return;
+
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  const filter = ctx.createBiquadFilter();
+
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(midiToHz(note), start);
+  osc.frequency.exponentialRampToValueAtTime(midiToHz(note - 12), start + 0.12);
+  filter.type = 'lowpass';
+  filter.frequency.setValueAtTime(560, start);
+  gain.gain.setValueAtTime(0.0001, start);
+  gain.gain.linearRampToValueAtTime(volume, start + 0.005);
+  gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.14);
+
+  osc.connect(filter);
+  filter.connect(gain);
+  gain.connect(output);
+
+  osc.start(start);
+  osc.stop(start + 0.16);
+}
+
+function scheduleBgmShimmer(note, start, duration, volume) {
+  const ctx = getAudioContext();
+  const output = getBgmGain();
+  if (!ctx || !output || note == null) return;
+
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  const filter = ctx.createBiquadFilter();
+
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(midiToHz(note), start);
+  osc.frequency.linearRampToValueAtTime(midiToHz(note + 5), start + duration * 0.45);
+  filter.type = 'bandpass';
+  filter.frequency.setValueAtTime(1900, start);
+  filter.Q.value = 1.8;
+  gain.gain.setValueAtTime(0.0001, start);
+  gain.gain.linearRampToValueAtTime(volume, start + 0.04);
+  gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
+
+  osc.connect(filter);
+  filter.connect(gain);
+  gain.connect(output);
+
+  osc.start(start);
+  osc.stop(start + duration + 0.03);
+}
+
+function scheduleGameplayStep(time, step) {
+  const localStep = step % 16;
+  const chordIndex = Math.floor(localStep / 4);
+  const chords = [
+    [38, 45, 50],
+    [36, 43, 48],
+    [41, 48, 53],
+    [34, 41, 46],
+  ];
+  const subBass = [26, null, null, null, 24, null, null, null, 29, null, null, null, 22, null, null, null];
+  const pulse = [null, 50, null, null, null, 48, null, null, null, 53, null, null, null, 46, null, null];
+  const shimmer = [74, null, null, 77, null, null, 76, null, 79, null, null, 81, null, null, 77, null];
+  const air = [86, null, 84, null, null, 83, null, null, 88, null, 86, null, null, 84, null, null];
+
+  if (localStep % 4 === 0) {
+    scheduleBgmPad(chords[chordIndex], time, GAME_BGM_STEP_SEC * 5.8, 0.06);
+  }
+  if (localStep % 8 === 0) {
+    scheduleBgmPulse(24 + chordIndex, time, 0.05);
+  }
+  scheduleBgmPluck(subBass[localStep], time, GAME_BGM_STEP_SEC * 2.4, 0.048, 'sine');
+  scheduleBgmPluck(pulse[localStep], time + 0.03, GAME_BGM_STEP_SEC * 1.2, 0.018, 'triangle');
+  scheduleBgmShimmer(shimmer[localStep], time + 0.12, GAME_BGM_STEP_SEC * 2.7, 0.018);
+  scheduleBgmShimmer(air[localStep], time + 0.2, GAME_BGM_STEP_SEC * 2.2, 0.011);
+}
+
+function scheduleResultStep(time, step) {
+  const localStep = step % 16;
+  const chordIndex = Math.floor(localStep / 4);
+  const chords = [
+    [55, 62, 67],
+    [57, 60, 64],
+    [59, 64, 67],
+    [60, 64, 69],
+  ];
+  const bass = [43, null, 43, 50, 45, null, 45, 52, 47, null, 47, 54, 48, null, 50, 55];
+  const bell = [79, 81, 83, 86, 84, 83, 81, 84, 86, 88, 91, 88, 86, 84, 83, 79];
+  const counter = [67, null, 69, null, 71, null, 72, null, 74, null, 76, null, 77, null, 79, null];
+
+  if (localStep % 4 === 0) {
+    scheduleBgmPad(chords[chordIndex], time, RESULT_BGM_STEP_SEC * 4.8, 0.092);
+  }
+  if (localStep % 2 === 0) {
+    scheduleBgmPulse(31 + (localStep >= 8 ? 2 : 0), time, 0.054);
+  }
+  scheduleBgmPluck(bass[localStep], time, RESULT_BGM_STEP_SEC * 1.15, 0.078, 'triangle');
+  scheduleBgmPluck(counter[localStep], time + 0.03, RESULT_BGM_STEP_SEC * 0.72, 0.044, 'sine');
+  scheduleBgmPluck(bell[localStep], time + 0.06, RESULT_BGM_STEP_SEC * 0.88, 0.062, 'triangle');
+}
+
+function scheduleBgmLoop() {
+  const ctx = getAudioContext();
+  const output = getBgmGain();
+  if (!ctx || !output || !bgmMode) return;
+  if (ctx.state !== 'running') return;
+
+  const stepDuration = bgmMode === 'results' ? RESULT_BGM_STEP_SEC : GAME_BGM_STEP_SEC;
+  while (bgmNextNoteTime < ctx.currentTime + BGM_SCHEDULE_AHEAD_SEC) {
+    if (bgmMode === 'results') {
+      scheduleResultStep(bgmNextNoteTime, bgmStep);
+    } else {
+      scheduleGameplayStep(bgmNextNoteTime, bgmStep);
+    }
+    bgmNextNoteTime += stepDuration;
+    bgmStep += 1;
+  }
+}
+
+function stopBgm() {
+  if (bgmTimer) {
+    clearInterval(bgmTimer);
+    bgmTimer = null;
+  }
+  bgmMode = null;
+  bgmStep = 0;
+  bgmNextNoteTime = 0;
+
+  const ctx = getAudioContext();
+  const output = getBgmGain();
+  if (!ctx || !output) return;
+  output.gain.cancelScheduledValues(ctx.currentTime);
+  output.gain.setValueAtTime(Math.max(output.gain.value, 0.0001), ctx.currentTime);
+  output.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.18);
+}
+
+function startBgm(mode) {
+  const ctx = getAudioContext();
+  const output = getBgmGain();
+  if (!ctx || !output) return;
+  if (ctx.state !== 'running') return;
+
+  if (bgmTimer) {
+    clearInterval(bgmTimer);
+    bgmTimer = null;
+  }
+
+  bgmMode = mode;
+  bgmStep = 0;
+  bgmNextNoteTime = ctx.currentTime + 0.03;
+  output.gain.cancelScheduledValues(ctx.currentTime);
+  output.gain.setValueAtTime(Math.max(output.gain.value, 0.0001), ctx.currentTime);
+  output.gain.exponentialRampToValueAtTime(mode === 'results' ? 0.145 : 0.16, ctx.currentTime + 0.25);
+  scheduleBgmLoop();
+  bgmTimer = setInterval(scheduleBgmLoop, BGM_LOOKAHEAD_MS);
+}
+
+function syncBgmForState(screenName = null) {
+  const activeScreen = screenName || document.querySelector('.screen.active')?.id?.replace('screen-', '') || 'lobby';
+  const shouldPlayFinal = activeScreen === 'results' && showingFinalResults;
+  const shouldPlayGameplay = !soloMode && !shouldPlayFinal && ['topic', 'drawing', 'guessing', 'results'].includes(activeScreen);
+
+  if (shouldPlayFinal) {
+    if (bgmMode !== 'results') startBgm('results');
+    return;
+  }
+  if (shouldPlayGameplay) {
+    if (bgmMode !== 'gameplay') startBgm('gameplay');
+    return;
+  }
+  if (bgmMode) stopBgm();
+}
 
 // ---- URL招待パラメータ ----
 const _urlRoomCode = new URLSearchParams(location.search).get('room')?.toUpperCase().trim() || null;
@@ -210,6 +593,7 @@ function showFinalResults() {
   clearResultsTerminalAnimation();
   setResultsView('final');
   $('screen-results').scrollTop = 0;
+  syncBgmForState('results');
 
   const { matchWinner, scores, roundHistory } = pendingFinalResults;
   const linesEl = $('final-results-terminal-lines');
@@ -696,6 +1080,7 @@ function showScreen(name) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   const s = $(`screen-${name}`);
   if (s) s.classList.add('active');
+  syncBgmForState(name);
 }
 
 // ===== SOCKET EVENTS =====
@@ -801,6 +1186,7 @@ socket.on('game_results', (res) => {
   const myGuess = guesses?.[myId];
   pendingFinalResults = gameOver ? res : null;
   setResultsView('round');
+  syncBgmForState('results');
 
 
   // Sudden death banner (show when in SD and match not yet over)
@@ -947,6 +1333,7 @@ if (_urlRoomCode) {
   inviteBtn.style.marginBottom = '10px';
   inviteBtn.textContent = `🔗 ルーム ${_urlRoomCode} に参加`;
   inviteBtn.addEventListener('click', () => {
+    triggerButtonSound();
     const name = $('name-input').value.trim();
     if (!name) { alert('名前を入力してください。'); return; }
     myName = name;
@@ -959,12 +1346,14 @@ if (_urlRoomCode) {
 
 $('solo-btn').addEventListener('click', startSoloMode);
 $('multi-btn').addEventListener('click', () => {
+  triggerButtonSound();
   const name = $('name-input').value.trim();
   if (!name) { alert('名前を入力してください。'); return; }
   $('mode-select').classList.add('hidden');
   $('multi-options').classList.remove('hidden');
 });
 $('back-to-mode-btn').addEventListener('click', () => {
+  triggerButtonSound('back');
   $('multi-options').classList.add('hidden');
   $('mode-select').classList.remove('hidden');
 });
@@ -973,14 +1362,17 @@ $('name-input').addEventListener('keydown', e => { if (e.key === 'Enter') { if (
 $('show-rooms-btn').addEventListener('click', showRoomList);
 $('lobby-back-btn').addEventListener('click', returnToEntryLobby);
 $('back-to-lobby-btn').addEventListener('click', () => {
+  triggerButtonSound('back');
   $('room-list-card').classList.add('hidden');
   $('join-card').classList.remove('hidden');
 });
 $('refresh-rooms-btn').addEventListener('click', () => {
+  triggerButtonSound();
   socket.emit('get_rooms');
 });
 
 function startSoloMode() {
+  triggerButtonSound();
   const name = $('name-input').value.trim();
   if (!name) { alert('名前を入力してください。'); return; }
   myName = name;
@@ -998,6 +1390,7 @@ socket.on('solo_session_result', (ok) => {
 });
 
 function exitSoloMode() {
+  triggerButtonSound('back');
   clearSoloTerminalAnimation();
   soloMode = false;
   soloStreak = 0;
@@ -1070,6 +1463,7 @@ socket.on('solo_result', ({ aiGuess, correct, topic, aiFiltered }) => {
 });
 
 $('solo-start-draw-btn').addEventListener('click', () => {
+  triggerButtonSound();
   drawingSetupDone = false;
   eraserOn = false;
   $('eraser-btn').classList.remove('active');
@@ -1089,10 +1483,12 @@ $('solo-start-draw-btn').addEventListener('click', () => {
 $('solo-topic-back-btn').addEventListener('click', exitSoloMode);
 
 $('solo-next-btn').addEventListener('click', () => {
+  triggerButtonSound();
   soloCurrentImageData = null;
   socket.emit('solo_start');
 });
 $('solo-retry-btn').addEventListener('click', () => {
+  triggerButtonSound();
   soloCurrentImageData = null;
   socket.emit('solo_start');
 });
@@ -1143,6 +1539,7 @@ $('room-code-join-btn').addEventListener('click', () => {
 });
 
 function showRoomList() {
+  triggerButtonSound();
   const name = $('name-input').value.trim();
   if (!name) { alert('名前を入力してください。'); return; }
   $('room-code-input').value = '';
@@ -1152,6 +1549,7 @@ function showRoomList() {
 }
 
 function doCreateRoom() {
+  triggerButtonSound();
   const name = $('name-input').value.trim();
   if (!name) return;
   myName = name;
@@ -1162,6 +1560,7 @@ function doCreateRoom() {
 }
 
 function doJoinRoom(roomCode) {
+  triggerButtonSound();
   const name = $('name-input').value.trim();
   if (!name) { alert('名前を入力してください。'); return; }
   myName = name;
@@ -1173,10 +1572,12 @@ function doJoinRoom(roomCode) {
 
 
 $('start-btn').addEventListener('click', () => {
+  triggerButtonSound();
   socket.emit('start_game');
 });
 
 function returnToEntryLobby() {
+  triggerButtonSound('back');
   pendingFinalResults = null;
   setResultsView('round');
   $('drawings-gallery').classList.add('hidden');
@@ -1225,6 +1626,7 @@ function refreshLobby(state) {
       btn.textContent = genre;
       if (genre === state.selectedGenre) btn.classList.add('selected');
       btn.addEventListener('click', () => {
+        triggerButtonSound();
         socket.emit('submit_genre', { genre });
       });
       genreChoices.appendChild(btn);
@@ -1278,6 +1680,7 @@ function buildGenreChoices(selectedGenre = '') {
     btn.textContent = genre;
     if (genre === selectedGenre) btn.classList.add('selected');
     btn.addEventListener('click', () => {
+      triggerButtonSound();
       container.querySelectorAll('button').forEach((button) => { button.disabled = true; });
       btn.classList.add('selected');
       socket.emit('submit_genre', { genre });
@@ -1296,6 +1699,7 @@ function buildTopicChoices(choices, genre = '') {
     btn.className = 'btn topic-choice-btn';
     btn.textContent = topic;
     btn.addEventListener('click', () => {
+      triggerButtonSound();
       container.querySelectorAll('button').forEach(b => { b.disabled = true; });
       btn.classList.add('selected');
       socket.emit('submit_topic', { topic });
@@ -1360,6 +1764,11 @@ function setupDrawingScreen(state) {
     $('draw-tools').classList.add('hidden');
     $('topic-banner').classList.add('hidden');
     $('spectator-banner').classList.remove('hidden');
+    // Strip stale drawing listeners left from a previous round where this client was
+    // the drawer. cloneNode(true) copies the element without copying event listeners.
+    const oldCanvas = $('draw-canvas');
+    const freshCanvas = oldCanvas.cloneNode(true);
+    oldCanvas.parentNode.replaceChild(freshCanvas, oldCanvas);
     fillWhite($('draw-canvas'));
   }
 }
@@ -1458,6 +1867,7 @@ function fillWhite(canvas) {
 }
 
 $('eraser-btn').addEventListener('click', () => {
+  triggerButtonSound();
   eraserOn = !eraserOn;
   $('eraser-btn').classList.toggle('active', eraserOn);
   if (eraserOn) {
@@ -1471,12 +1881,14 @@ $('eraser-btn').addEventListener('click', () => {
 $('brush-size').addEventListener('input', e => { brushSize = Number(e.target.value); });
 
 $('clear-btn').addEventListener('click', () => {
+  triggerButtonSound();
   const c = $('draw-canvas');
   if (c) fillWhite(c);
   if (!soloMode) socket.emit('canvas_clear');
 });
 
 $('submit-drawing-btn').addEventListener('click', () => {
+  triggerButtonSound();
   const c = $('draw-canvas');
   if (!c) return;
   const btn = $('submit-drawing-btn');
@@ -1497,6 +1909,7 @@ $('submit-guess-btn').addEventListener('click', submitGuess);
 $('guess-input').addEventListener('keydown', e => { if (e.key === 'Enter') submitGuess(); });
 
 function submitGuess() {
+  triggerButtonSound();
   const answer = $('guess-input').value.trim();
   if (!answer) return;
   socket.emit('submit_guess', { answer });
@@ -1545,6 +1958,7 @@ function renderGuessCanvas(imageData) {
 // ===== RESULTS =====
 
 $('next-round-btn').addEventListener('click', () => {
+  triggerButtonSound();
   if (pendingFinalResults && !showingFinalResults) {
     showFinalResults();
     return;
@@ -1552,6 +1966,7 @@ $('next-round-btn').addEventListener('click', () => {
   socket.emit('next_round');
 });
 $('play-again-btn').addEventListener('click', () => {
+  triggerButtonSound();
   socket.emit('play_again');
 });
 $('leave-room-btn').addEventListener('click', returnToEntryLobby);
@@ -1559,6 +1974,7 @@ $('leave-room-btn').addEventListener('click', returnToEntryLobby);
 // ===== QR CODE =====
 
 $('show-qr-btn').addEventListener('click', () => {
+  triggerButtonSound();
   if (!myRoomCode) return;
   const url = `${location.origin}?room=${myRoomCode}`;
   socket.emit('get_room_qr', { url });
@@ -1571,6 +1987,7 @@ socket.on('room_qr', ({ dataUrl, code }) => {
 });
 
 $('qr-close-btn').addEventListener('click', () => {
+  triggerButtonSound();
   $('qr-modal').classList.add('hidden');
 });
 

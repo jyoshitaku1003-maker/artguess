@@ -689,6 +689,7 @@ input[type="text"]::placeholder {
   box-shadow:
     0 0 0 1px rgba(255, 255, 255, 0.18),
     0 18px 28px rgba(0, 0, 0, 0.34);
+  pointer-events: none;
 }
 
 #draw-canvas {
@@ -1484,6 +1485,14 @@ input[type="range"] {
   flex-direction: column;
   gap: 10px;
   margin-top: 12px;
+  max-height: 55dvh;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.topic-choices::-webkit-scrollbar {
+  display: none;
 }
 
 .topic-choice-btn {
