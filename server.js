@@ -68,7 +68,7 @@ function freshGame() {
     players: [],
     drawerIndex: -1,
     topic: '',
-    selectedGenre: '',
+    selectedGenre: 'ジャンルなし',
     topicChoices: [],
     usedTopics: [],
     drawingData: null,
@@ -696,7 +696,6 @@ io.on('connection', (socket) => {
     const me = game.players.find((p) => p.id === socket.id);
     if (!me?.isHost) return;
     if (game.players.length < 2) { socket.emit('error_msg', 'プレイヤーは2人以上必要です。'); return; }
-    if (!game.selectedGenre) { socket.emit('error_msg', 'ゲーム開始前にジャンルを選んでください。'); return; }
 
     game.drawerIndex = Math.floor(Math.random() * game.players.length);
     game.players.forEach((p, i) => { p.isDrawer = i === game.drawerIndex; });

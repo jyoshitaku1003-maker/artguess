@@ -1411,6 +1411,28 @@ input[type="range"] {
   margin-bottom: 0;
 }
 
+.lobby-genre-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.18);
+}
+
+.lobby-genre-label {
+  font-size: 0.88rem;
+  color: var(--muted);
+  letter-spacing: 0.04em;
+}
+
+.genre-modal-choices {
+  max-height: 50dvh;
+}
+
 #lobby-info {
   max-height: calc(100dvh - 80px);
   overflow-y: auto;

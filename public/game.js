@@ -1609,31 +1609,13 @@ function refreshLobby(state) {
   });
 
   const me = state.players.find(p => p.id === myId);
-  const genrePanel = $('lobby-genre-panel');
-  const genreSelected = $('lobby-genre-selected');
-  const genreChoices = $('lobby-genre-choices');
-  if (genrePanel) genrePanel.classList.remove('hidden');
-  if (genreSelected) {
-    genreSelected.textContent = state.selectedGenre
-      ? `今回のジャンル: ${state.selectedGenre}`
-      : 'ホストがゲーム開始前にジャンルを選びます';
-  }
-  if (genreChoices) genreChoices.innerHTML = '';
-  if (me?.isHost && genreChoices) {
-    MULTI_TOPIC_GENRES.forEach((genre) => {
-      const btn = document.createElement('button');
-      btn.className = 'btn topic-choice-btn';
-      btn.textContent = genre;
-      if (genre === state.selectedGenre) btn.classList.add('selected');
-      btn.addEventListener('click', () => {
-        triggerButtonSound();
-        socket.emit('submit_genre', { genre });
-      });
-      genreChoices.appendChild(btn);
-    });
-  }
+  const genreLabel = $('lobby-genre-label');
+  if (genreLabel) genreLabel.textContent = `ジャンル: ${state.selectedGenre || 'ジャンルなし'}`;
+  const selectGenreBtn = $('select-genre-btn');
+  if (selectGenreBtn) selectGenreBtn.classList.toggle('hidden', !me?.isHost);
+
   if (me?.isHost) {
-    $('start-btn').classList.toggle('hidden', state.players.length < 2 || !state.selectedGenre);
+    $('start-btn').classList.toggle('hidden', state.players.length < 2);
     $('waiting-msg').classList.add('hidden');
   } else {
     $('start-btn').classList.add('hidden');
@@ -1989,6 +1971,44 @@ $('qr-close-btn').addEventListener('click', () => {
 $('qr-modal').addEventListener('click', (e) => {
   if (e.target === $('qr-modal')) $('qr-modal').classList.add('hidden');
 });
+
+// ===== GENRE MODAL =====
+
+$('select-genre-btn').addEventListener('click', () => {
+  triggerButtonSound();
+  openGenreModal();
+});
+
+$('genre-modal-close-btn').addEventListener('click', () => {
+  triggerButtonSound();
+  $('genre-modal').classList.add('hidden');
+});
+
+$('genre-modal').addEventListener('click', (e) => {
+  if (e.target === $('genre-modal')) $('genre-modal').classList.add('hidden');
+});
+
+function openGenreModal() {
+  const modal = $('genre-modal');
+  const container = $('genre-modal-choices');
+  const currentGenre = $('lobby-genre-label')?.textContent.replace('ジャンル: ', '') || 'ジャンルなし';
+  container.innerHTML = '';
+  MULTI_TOPIC_GENRES.forEach(genre => {
+    const btn = document.createElement('button');
+    btn.className = 'btn topic-choice-btn' + (genre === currentGenre ? ' selected' : '');
+    btn.textContent = genre;
+    btn.addEventListener('click', () => {
+      triggerButtonSound();
+      socket.emit('submit_genre', { genre });
+      container.querySelectorAll('.topic-choice-btn').forEach(b => b.classList.remove('selected'));
+      btn.classList.add('selected');
+      $('lobby-genre-label').textContent = `ジャンル: ${genre}`;
+      setTimeout(() => modal.classList.add('hidden'), 250);
+    });
+    container.appendChild(btn);
+  });
+  modal.classList.remove('hidden');
+}
 
 // ===== TIMER RING =====
 

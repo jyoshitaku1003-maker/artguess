@@ -73,9 +73,9 @@
       <div id="lobby-info" class="card hidden">
         <h3 class="section-title">参加者 <span id="player-count" style="font-weight:400;color:var(--muted);">0 / 6人</span></h3>
         <ul id="player-list"></ul>
-        <div id="lobby-genre-panel" class="hidden">
-          <p id="lobby-genre-selected" class="hint"></p>
-          <div id="lobby-genre-choices" class="topic-choices"></div>
+        <div class="lobby-genre-row">
+          <span id="lobby-genre-label" class="lobby-genre-label">ジャンル: ジャンルなし</span>
+          <button id="select-genre-btn" class="btn btn-tool hidden">変更</button>
         </div>
         <p id="lobby-hint" class="hint">2人以上集まったらホストがスタートできます</p>
         <button id="start-btn" class="btn btn-success btn-block hidden">ゲームスタート！</button>
@@ -331,6 +331,23 @@
         </div>
         <p class="qr-code-text">ROOM: <strong id="qr-room-code"></strong></p>
         <button id="qr-close-btn" class="btn btn-tool btn-block" style="margin-top:16px;">閉じる</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== GENRE MODAL ===== -->
+  <div id="genre-modal" class="qr-modal hidden" role="dialog" aria-modal="true">
+    <div class="qr-modal-box">
+      <div class="howto-chrome">
+        <span class="howto-dot dot-r"></span>
+        <span class="howto-dot dot-y"></span>
+        <span class="howto-dot dot-g"></span>
+        <span class="howto-chrome-label">select_genre.exe</span>
+      </div>
+      <div class="qr-modal-body">
+        <p class="qr-label">ジャンルを選択</p>
+        <div id="genre-modal-choices" class="topic-choices genre-modal-choices"></div>
+        <button id="genre-modal-close-btn" class="btn btn-tool btn-block" style="margin-top:16px;">閉じる</button>
       </div>
     </div>
   </div>
