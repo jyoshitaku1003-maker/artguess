@@ -59,6 +59,104 @@ let resultsTerminalTimer = null;
 let soloTerminalTimer = null;
 let pendingFinalResults = null;
 let showingFinalResults = false;
+let audioCtx = null;
+let masterGain = null;
+let lastButtonSoundAt = 0;
+
+function getAudioContext() {
+  const Ctx = window.AudioContext || window.webkitAudioContext;
+  if (!Ctx) return null;
+  if (!audioCtx) audioCtx = new Ctx();
+  return audioCtx;
+}
+
+function getMasterGain() {
+  const ctx = getAudioContext();
+  if (!ctx) return null;
+  if (!masterGain) {
+    masterGain = ctx.createGain();
+    masterGain.gain.value = 0.12;
+    masterGain.connect(ctx.destination);
+  }
+  return masterGain;
+}
+
+function warmAudioGraph(ctx, output) {
+  if (!ctx || !output) return;
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = 'sine';
+  osc.frequency.value = 440;
+  gain.gain.value = 0.00001;
+  osc.connect(gain);
+  gain.connect(output);
+  osc.start();
+  osc.stop(ctx.currentTime + 0.01);
+}
+
+function playButtonTapTone() {
+  const ctx = getAudioContext();
+  const output = getMasterGain();
+  if (!ctx || !output) return;
+
+  const start = ctx.currentTime + 0.001;
+  const oscA = ctx.createOscillator();
+  const oscB = ctx.createOscillator();
+  const gain = ctx.createGain();
+
+  oscA.type = 'triangle';
+  oscB.type = 'triangle';
+  oscA.frequency.setValueAtTime(1320, start);
+  oscB.frequency.setValueAtTime(880, start + 0.004);
+
+  gain.gain.setValueAtTime(0.0001, start);
+  gain.gain.linearRampToValueAtTime(0.08, start + 0.004);
+  gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.07);
+
+  oscA.connect(gain);
+  oscB.connect(gain);
+  gain.connect(output);
+
+  oscA.start(start);
+  oscB.start(start);
+  oscA.stop(start + 0.08);
+  oscB.stop(start + 0.08);
+}
+
+function triggerButtonSound() {
+  const now = Date.now();
+  if (now - lastButtonSoundAt < 90) return;
+  lastButtonSoundAt = now;
+
+  const ctx = getAudioContext();
+  const output = getMasterGain();
+  if (!ctx || !output) return;
+
+  const play = () => {
+    warmAudioGraph(ctx, output);
+    playButtonTapTone();
+  };
+
+  if (ctx.state === 'suspended') {
+    ctx.resume().then(play).catch(() => {});
+    return;
+  }
+
+  play();
+}
+
+function handleButtonSoundEvent(event) {
+  const button = event.target.closest('button');
+  if (!button || button.disabled || button.id === 'dev-hotspot') return;
+  triggerButtonSound();
+}
+
+document.addEventListener('touchend', handleButtonSoundEvent, { capture: true, passive: true });
+document.addEventListener('mouseup', handleButtonSoundEvent, true);
+document.addEventListener('keydown', (event) => {
+  if (event.key !== 'Enter' && event.key !== ' ') return;
+  handleButtonSoundEvent(event);
+}, true);
 
 // ---- URL招待パラメータ ----
 const _urlRoomCode = new URLSearchParams(location.search).get('room')?.toUpperCase().trim() || null;
