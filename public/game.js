@@ -1155,6 +1155,7 @@ $('solo-back-btn').addEventListener('click', exitSoloMode);
 socket.on('room_list', (list) => {
   const ul = $('room-list');
   ul.innerHTML = '';
+  const filter = $('room-code-input').value.trim().toUpperCase();
   if (list.length === 0) {
     $('no-rooms-msg').classList.remove('hidden');
   } else {
@@ -1162,6 +1163,7 @@ socket.on('room_list', (list) => {
     list.forEach(({ code, hostName, playerCount }) => {
       const li = document.createElement('li');
       li.className = 'room-item';
+      if (filter && !code.includes(filter)) li.classList.add('hidden');
       li.innerHTML =
         `<div class="room-item-info">
           <span class="room-item-code">${esc(code)}</span>
@@ -1174,9 +1176,30 @@ socket.on('room_list', (list) => {
   }
 });
 
+$('room-code-input').addEventListener('input', () => {
+  const filter = $('room-code-input').value.trim().toUpperCase();
+  document.querySelectorAll('#room-list .room-item').forEach((li) => {
+    const code = li.querySelector('.room-item-code')?.textContent || '';
+    li.classList.toggle('hidden', filter.length > 0 && !code.includes(filter));
+  });
+  const visible = document.querySelectorAll('#room-list .room-item:not(.hidden)').length;
+  $('no-rooms-msg').classList.toggle('hidden', visible > 0);
+});
+
+$('room-code-input').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') $('room-code-join-btn').click();
+});
+
+$('room-code-join-btn').addEventListener('click', () => {
+  const code = $('room-code-input').value.trim().toUpperCase();
+  if (!code) return;
+  doJoinRoom(code);
+});
+
 function showRoomList() {
   const name = $('name-input').value.trim();
   if (!name) { alert('名前を入力してください。'); return; }
+  $('room-code-input').value = '';
   $('join-card').classList.add('hidden');
   $('room-list-card').classList.remove('hidden');
   socket.emit('get_rooms');

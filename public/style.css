@@ -567,6 +567,22 @@ input[type="text"]::placeholder {
   font-size: 0.78rem;
 }
 
+.room-search-wrap {
+  display: flex;
+  gap: 8px;
+}
+
+.room-search-wrap input {
+  flex: 1;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  font-weight: 700;
+}
+
+.room-item.hidden {
+  display: none;
+}
+
 .hint,
 .muted {
   color: var(--muted);

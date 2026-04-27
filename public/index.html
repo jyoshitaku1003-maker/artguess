@@ -60,7 +60,11 @@
 
       <div id="room-list-card" class="card hidden">
         <button id="back-to-lobby-btn" class="btn btn-tool" style="margin-bottom:12px;">← 戻る</button>
-        <h3 class="section-title">参加可能なルーム</h3>
+        <div class="room-search-wrap">
+          <input id="room-code-input" type="text" placeholder="ルームコードを入力" maxlength="6" autocomplete="off" spellcheck="false">
+          <button id="room-code-join-btn" class="btn btn-primary">参加</button>
+        </div>
+        <h3 class="section-title" style="margin-top:16px;">参加可能なルーム</h3>
         <ul id="room-list"></ul>
         <p id="no-rooms-msg" class="muted hidden">現在参加できるルームはありません。</p>
         <button id="refresh-rooms-btn" class="btn btn-tool btn-block" style="margin-top:12px;">更新</button>
