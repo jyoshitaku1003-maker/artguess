@@ -300,14 +300,14 @@ function scheduleGameplayStep(time, step) {
   const echo = [null, 83, null, 81, null, 79, null, 78, null, 76, null, 74, null, 76, null, 78];
 
   if (localStep % 4 === 0) {
-    scheduleBgmPad(chords[chordIndex], time, GAME_BGM_STEP_SEC * 4.2, 0.042);
+    scheduleBgmPad(chords[chordIndex], time, GAME_BGM_STEP_SEC * 4.2, 0.06);
   }
   if (localStep % 2 === 0) {
-    scheduleBgmPulse(28, time, 0.04);
+    scheduleBgmPulse(28, time, 0.055);
   }
-  scheduleBgmPluck(bass[localStep], time, GAME_BGM_STEP_SEC * 0.9, 0.05, 'triangle');
-  scheduleBgmPluck(lead[localStep], time + 0.01, GAME_BGM_STEP_SEC * 0.62, 0.03, 'triangle');
-  scheduleBgmPluck(echo[localStep], time + 0.05, GAME_BGM_STEP_SEC * 0.45, 0.012, 'sine');
+  scheduleBgmPluck(bass[localStep], time, GAME_BGM_STEP_SEC * 0.9, 0.072, 'triangle');
+  scheduleBgmPluck(lead[localStep], time + 0.01, GAME_BGM_STEP_SEC * 0.62, 0.042, 'triangle');
+  scheduleBgmPluck(echo[localStep], time + 0.05, GAME_BGM_STEP_SEC * 0.45, 0.018, 'sine');
 }
 
 function scheduleResultStep(time, step) {
@@ -323,13 +323,13 @@ function scheduleResultStep(time, step) {
   const bell = [74, 76, 79, null, 76, 74, 72, null, 79, 81, 83, null, 79, 76, 74, null];
 
   if (localStep % 4 === 0) {
-    scheduleBgmPad(chords[chordIndex], time, RESULT_BGM_STEP_SEC * 4.6, 0.035);
+    scheduleBgmPad(chords[chordIndex], time, RESULT_BGM_STEP_SEC * 4.6, 0.052);
   }
   if (localStep === 0 || localStep === 8) {
-    scheduleBgmPulse(31, time, 0.026);
+    scheduleBgmPulse(31, time, 0.038);
   }
-  scheduleBgmPluck(bass[localStep], time, RESULT_BGM_STEP_SEC * 1.1, 0.038, 'sine');
-  scheduleBgmPluck(bell[localStep], time + 0.015, RESULT_BGM_STEP_SEC * 0.7, 0.024, 'triangle');
+  scheduleBgmPluck(bass[localStep], time, RESULT_BGM_STEP_SEC * 1.1, 0.055, 'sine');
+  scheduleBgmPluck(bell[localStep], time + 0.015, RESULT_BGM_STEP_SEC * 0.7, 0.034, 'triangle');
 }
 
 function scheduleBgmLoop() {
@@ -383,7 +383,7 @@ function startBgm(mode) {
   bgmNextNoteTime = ctx.currentTime + 0.03;
   output.gain.cancelScheduledValues(ctx.currentTime);
   output.gain.setValueAtTime(Math.max(output.gain.value, 0.0001), ctx.currentTime);
-  output.gain.exponentialRampToValueAtTime(mode === 'results' ? 0.05 : 0.065, ctx.currentTime + 0.25);
+  output.gain.exponentialRampToValueAtTime(mode === 'results' ? 0.095 : 0.12, ctx.currentTime + 0.25);
   scheduleBgmLoop();
   bgmTimer = setInterval(scheduleBgmLoop, BGM_LOOKAHEAD_MS);
 }
