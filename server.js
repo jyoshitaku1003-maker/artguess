@@ -1,4 +1,4 @@
-require('dotenv').config();
+﻿require('dotenv').config();
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
@@ -10,7 +10,7 @@ const { randomUUID } = require('crypto');
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
-  maxHttpBufferSize: 5e6, // 5MB上限（デフォルト1MB）
+  maxHttpBufferSize: 5e6, // 5MB荳企剞・医ョ繝輔か繝ｫ繝・MB・・
 });
 
 const openai = process.env.OPENAI_API_KEY
@@ -36,9 +36,9 @@ const RECONNECT_GRACE_MS = 15000;
 const MAX_PLAYERS = 6;
 const ROOM_CREATE_LIMIT_TIMEZONE = 'Asia/Tokyo';
 const DEV_OVERRIDE_PASSWORD = process.env.DEV_PASSWORD ?? null;
-const MAX_IMAGE_B64_LEN = 7 * 1024 * 1024; // ~5MB バイナリ相当
+const MAX_IMAGE_B64_LEN = 7 * 1024 * 1024; // ~5MB 繝舌う繝翫Μ逶ｸ蠖・
 const MAX_STROKE_POINTS = 1000;
-const AI_COOLDOWN_MS = 12000; // ソケットごとのAI呼び出し最小間隔（ms）
+const AI_COOLDOWN_MS = 12000; // 繧ｽ繧ｱ繝・ヨ縺斐→縺ｮAI蜻ｼ縺ｳ蜃ｺ縺玲怙蟆城俣髫費ｼ・s・・
 
 // ---- room management ----
 
@@ -49,8 +49,8 @@ const createdRoomDates   = new Map(); // sessionId -> YYYY-MM-DD
 const createdRoomDatesByIP = new Map(); // IP -> YYYY-MM-DD
 const soloPlayedDates    = new Map(); // sessionId -> YYYY-MM-DD
 const soloPlayedDatesByIP  = new Map(); // IP -> YYYY-MM-DD
-const soloCurrentTopics = new Map(); // socketId -> 現在のお題
-const aiLastCallTime    = new Map(); // socketId -> 最終AI呼び出し時刻
+const soloCurrentTopics = new Map(); // socketId -> 迴ｾ蝨ｨ縺ｮ縺企｡・
+const aiLastCallTime    = new Map(); // socketId -> 譛邨・I蜻ｼ縺ｳ蜃ｺ縺玲凾蛻ｻ
 const unlimitedCreatorSessions = new Set();
 
 function generateRoomCode() {
@@ -157,6 +157,22 @@ function normalizeAnswer(text) {
     .toLowerCase();
 }
 
+function cleanTopicWord(text) {
+  return String(text ?? '')
+    .trim()
+    .replace(/[「」『』"]/g, '')
+    .slice(0, 20);
+}
+
+function isSingleWordTopic(text) {
+  const value = cleanTopicWord(text);
+  if (!value) return false;
+  if (/\s/.test(value)) return false;
+  if (value.includes('の')) return false;
+  if (/[、。,．,\/\\!?！？:：;；()（）\[\]［］]/.test(value)) return false;
+  return true;
+}
+
 function isCorrect(guess, topic) {
   const g = normalizeAnswer(guess);
   const t = normalizeAnswer(topic);
@@ -244,10 +260,10 @@ function parseAiVisionResult(raw) {
   try {
     const parsed = JSON.parse(text);
     const answer = String(parsed.answer ?? '').trim() || fallbackAnswer;
-    const reason = String(parsed.reason ?? '').trim() || '画像の特徴から推測しました';
+    const reason = String(parsed.reason ?? '').trim() || '絵の特徴から推測しました';
     return { answer, reason };
   } catch {
-    return { answer: fallbackAnswer, reason: '画像の特徴から推測しました' };
+    return { answer: fallbackAnswer, reason: '絵の特徴から推測しました' };
   }
 }
 
@@ -255,7 +271,7 @@ async function requestAIGuess(room, imageData) {
   const { game } = room;
   if (!openai) {
     game.aiGuess = 'わからない';
-    game.aiReason = 'OpenAI API を利用できないため推測できませんでした';
+    game.aiReason = 'OpenAI API が利用できないため推測できませんでした';
     io.to(room.code).emit('game_update', publicState(room));
     checkEndCondition(room);
     return;
@@ -272,16 +288,16 @@ async function requestAIGuess(room, imageData) {
         role: 'user',
         content: [
           { type: 'image_url', image_url: { url: `data:image/png;base64,${base64}`, detail: 'high' } },
-          { type: 'text', text: 'Return strict JSON only in the form {"answer":"渦巻き","reason":"中央から外に向かう曲線が見えたため"}. Guess the intended Japanese noun from the drawing. Keep the answer short. Keep the reason to one short Japanese sentence that explains which visual clues you used.' },
-          { type: 'text', text: 'このイラストが表す日本語のお題をひとつだけ推測してください。抽象的なお題でも、絵の形、配置、線の流れなどの視覚情報を根拠にして、日本語で短く答えてください。' },
+          { type: 'text', text: 'Return strict JSON only in the form {"answer":"短い日本語の名詞","reason":"視覚的な根拠を一文で"}.' },
+          { type: 'text', text: 'Guess the intended Japanese noun from the drawing. Keep the answer short. Keep the reason to one short Japanese sentence that explains which visual clues you used. If uncertain, still provide your best guess.' },
         ],
       }],
     });
     const raw = response.choices[0].message.content.trim();
-    const REFUSAL = /申し訳|できません|すみません|不適切|I'm sorry|I cannot|inappropriate/i;
+    const REFUSAL = /逕ｳ縺苓ｨｳ|縺ｧ縺阪∪縺帙ｓ|縺吶∩縺ｾ縺帙ｓ|荳埼←蛻・I'm sorry|I cannot|inappropriate/i;
     if (REFUSAL.test(raw)) {
       game.aiGuess = '__filtered__';
-      game.aiReason = 'セーフティフィルターにより回答理由を生成できませんでした';
+      game.aiReason = '繧ｻ繝ｼ繝輔ユ繧｣繝輔ぅ繝ｫ繧ｿ繝ｼ縺ｫ繧医ｊ蝗樒ｭ皮炊逕ｱ繧堤函謌舌〒縺阪∪縺帙ｓ縺ｧ縺励◆';
       console.log(`[AI] Filtered response: "${raw.slice(0, 40)}"`);
     } else {
       const parsed = parseAiVisionResult(raw);
@@ -292,7 +308,7 @@ async function requestAIGuess(room, imageData) {
   } catch (err) {
     console.error('[AI] Error:', err.status ?? '', err.message);
     game.aiGuess = 'わからない';
-    game.aiReason = 'AI の推測理由を取得できませんでした';
+    game.aiReason = 'AI の推測中にエラーが発生しました';
   }
 
   if (game.phase === 'guessing') {
@@ -315,7 +331,7 @@ async function judgeAnswers(topic, answers) {
       response_format: { type: 'json_object' },
       messages: [{
         role: 'user',
-        content: `お絵かきゲームのお題は「${topic}」です。以下の回答が正解かどうか判定してください。同じ意味・言い方の違い（例：バンドエイド＝ばんそうこう、グラス＝コップ、えんぴつ＝鉛筆）は正解としてください。\n\n${numbered}\n\n{"1":true,"2":false,...} の形式のJSONのみ返してください。`,
+        content: `Topic: ${topic}\nAnswers:\n${numbered}\n\nFor each answer, decide whether it should count as correct for the topic. Be tolerant of close wording, synonyms, and small phrasing differences, but do not mark clearly different concepts as correct. Return JSON only in the form {"1":true,"2":false}.`,
       }],
     });
     const raw = JSON.parse(resp.choices[0].message.content);
@@ -343,10 +359,10 @@ async function emitResults(room) {
   const aiCorrect = !aiFiltered && (judgments['__ai__'] ?? isCorrect(game.aiGuess, game.topic));
   const humanWin = Object.values(game.guesses).some((g) => g.correct);
 
-  // AIがフィルターされた場合は引き分け（両者0点）
+  // AI縺後ヵ繧｣繝ｫ繧ｿ繝ｼ縺輔ｌ縺溷ｴ蜷医・蠑輔″蛻・￠・井ｸ｡閠・轤ｹ・・
   let roundWinner = 'none';
   if (!aiFiltered) {
-    if (humanWin && aiCorrect) roundWinner = 'ai';   // 両者正解はAIのポイント
+    if (humanWin && aiCorrect) roundWinner = 'ai';   // 荳｡閠・ｭ｣隗｣縺ｯAI縺ｮ繝昴う繝ｳ繝・
     else if (humanWin)         roundWinner = 'human';
     else if (aiCorrect)        roundWinner = 'ai';
   }
@@ -367,23 +383,23 @@ async function emitResults(room) {
     else if (ar)  { gameOver = true; matchWinner = 'ai'; }
   }
 
-  // ラウンド履歴に追加
+  // 繝ｩ繧ｦ繝ｳ繝牙ｱ･豁ｴ縺ｫ霑ｽ蜉
   game.roundHistory.push({
     drawing: game.drawingData,
     topic: game.topic,
-    drawerName: drawer?.name ?? '？',
+    drawerName: drawer?.name ?? '',
     guesses: Object.values(game.guesses).map((guess) => ({
       name: guess.name,
       answer: guess.answer,
       correct: guess.correct,
     })),
-    aiGuess: aiFiltered ? '（回答できませんでした）' : game.aiGuess,
+    aiGuess: aiFiltered ? '判定不能' : game.aiGuess,
     roundWinner,
   });
 
   io.to(room.code).emit('game_results', {
     topic: game.topic, guesses: game.guesses,
-    aiGuess: aiFiltered ? '（回答できませんでした）' : game.aiGuess,
+    aiGuess: aiFiltered ? '判定不能' : game.aiGuess,
     aiReason: game.aiReason,
     drawing: game.drawingData,
     aiCorrect, aiFiltered, humanWin, roundWinner, scores: { ...game.scores },
@@ -458,7 +474,7 @@ function finalizeDisconnect(room, sessionId) {
     resetToLobby(room);
     room.game.scores = savedScores;
     room.game.isSuddenDeath = savedSD;
-    io.to(room.code).emit('game_aborted', '絵を描く人が退出しました。次のラウンドをお待ちください。');
+    io.to(room.code).emit('game_aborted', '描く人が途中で退出しました。次のラウンドを待ってください。');
   }
 
   io.to(room.code).emit('game_update', publicState(room));
@@ -467,10 +483,15 @@ function finalizeDisconnect(room, sessionId) {
 
 // ---- topic choices ----
 
+const TOPIC_FALLBACK = ['海', '花', '星', '雨', '風', '森', '山', '月', '鳥', '炎'];
+
 async function generateTopicChoices(usedTopics = []) {
-  if (!openai) return ['猫', '家', '車'].filter(t => !usedTopics.includes(t)).slice(0, 3).concat(['猫', '家', '車']).slice(0, 3);
+  const availableFallback = TOPIC_FALLBACK.filter((t) => !usedTopics.includes(t));
+  const fallback = availableFallback.length >= 3 ? availableFallback.slice(0, 3) : TOPIC_FALLBACK.slice(0, 3);
+  if (!openai) return fallback;
+
   const exclusion = usedTopics.length > 0
-    ? `\n次のお題はすでに使用済みなので絶対に使わないでください：${usedTopics.join('、')}`
+    ? `\nDo not reuse any of these already-used topics: ${usedTopics.join(', ')}`
     : '';
   try {
     const resp = await openai.chat.completions.create({
@@ -479,15 +500,20 @@ async function generateTopicChoices(usedTopics = []) {
       response_format: { type: 'json_object' },
       messages: [{
         role: 'user',
-        content: `お絵かきゲームのお題を3つ考えてください。条件：日本語の名詞で1〜8文字、絵として描けるもの、3つとも難しめにしてください（例：身近でないもの、抽象的な概念に近いもの、複雑な形のもの、あまり見慣れないものなど）。簡単すぎるものや頻出すぎるものは避けてください。{"topics":["お題1","お題2","お題3"]}の形式でJSONのみ返してください。${exclusion}`,
+        content: `Generate exactly 3 Japanese drawing-game topics. Each topic must be a single Japanese noun word only. No phrases, no "AのB", no punctuation, no spaces, and no explanation. Keep them short and easy to draw. Return JSON only in the form {"topics":["topic1","topic2","topic3"]}.${exclusion}`,
       }],
     });
     const raw = JSON.parse(resp.choices[0].message.content);
-    if (Array.isArray(raw.topics) && raw.topics.length === 3) return raw.topics.map(t => String(t).trim().slice(0, 20));
-    return ['猫', '家', '車'];
+    if (Array.isArray(raw.topics)) {
+      const cleaned = raw.topics
+        .map(cleanTopicWord)
+        .filter((topic, index, arr) => isSingleWordTopic(topic) && !usedTopics.includes(topic) && arr.indexOf(topic) === index);
+      if (cleaned.length >= 3) return cleaned.slice(0, 3);
+    }
+    return fallback;
   } catch (err) {
     console.error('[TopicChoices] Error:', err.message);
-    return ['猫', '家', '車'];
+    return fallback;
   }
 }
 
@@ -503,7 +529,7 @@ async function generateSoloTopic(usedTopics = []) {
     return pool[Math.floor(Math.random() * pool.length)];
   }
   const exclusion = usedTopics.length > 0
-    ? `\n次のお題はすでに使用済みなので絶対に使わないでください：${usedTopics.join('、')}`
+    ? `\nDo not reuse any of these already-used topics: ${usedTopics.join(', ')}`
     : '';
   try {
     const resp = await openai.chat.completions.create({
@@ -511,12 +537,14 @@ async function generateSoloTopic(usedTopics = []) {
       max_tokens: 20,
       messages: [{
         role: 'user',
-        content: `お絵かきゲームのお題を1つ考えてください。条件：日本語の名詞で1〜6文字、絵に描きやすいもの（動物・食べ物・乗り物・日用品・自然など）、単語のみ返してください。説明不要。${exclusion}`,
+        content: `Generate 1 Japanese drawing-game topic. It must be a single noun word only. No phrases, no "AのB", no punctuation, no spaces, and no explanation. Return only the topic word.${exclusion}`,
       }],
     });
-    const raw = resp.choices[0].message.content.trim();
-    const m = raw.match(/[ぁ-んァ-ン一-龠A-Za-zー]+/);
-    return m ? m[0] : raw.slice(0, 6);
+    const raw = cleanTopicWord(resp.choices[0].message.content);
+    if (isSingleWordTopic(raw) && !usedTopics.includes(raw)) return raw;
+    const available = SOLO_TOPIC_FALLBACK.filter(t => !usedTopics.includes(t));
+    const pool = available.length > 0 ? available : SOLO_TOPIC_FALLBACK;
+    return pool[Math.floor(Math.random() * pool.length)];
   } catch (err) {
     console.error('[Solo] Topic generation error:', err.message);
     return SOLO_TOPIC_FALLBACK[Math.floor(Math.random() * SOLO_TOPIC_FALLBACK.length)];
@@ -546,7 +574,7 @@ io.on('connection', (socket) => {
       const host = room.game.players.find(p => p.isHost);
       list.push({
         code: room.code,
-        hostName: host?.name ?? '？',
+        hostName: host?.name ?? '',
         playerCount: room.game.players.length,
       });
     }
@@ -554,7 +582,7 @@ io.on('connection', (socket) => {
   });
 
   socket.on('create_room', ({ name, sessionId }) => {
-    // 再接続チェック
+    // 蜀肴磁邯壹メ繧ｧ繝・け
     const existingRoomCode = sessionId ? sessionRoom.get(sessionId) : null;
     const existingRoom = existingRoomCode ? rooms.get(existingRoomCode) : null;
     if (existingRoom) {
@@ -568,7 +596,7 @@ io.on('connection', (socket) => {
     const sid = sessionId || randomUUID();
     const ip = getClientIP(socket);
     if (!hasUnlimitedRoomCreation(sid) && hasCreatedRoomToday(sid, ip)) {
-      socket.emit('error_msg', 'ルーム作成は1日1回までです。明日もう一度お試しください。');
+        socket.emit('error_msg', 'ルーム作成は1日1回までです。');
       return;
     }
 
@@ -597,19 +625,19 @@ io.on('connection', (socket) => {
       return;
     }
 
-    // 再接続チェック
+    // 蜀肴磁邯壹メ繧ｧ繝・け
     if (sessionId) {
       const player = room.game.players.find((p) => p.sessionId === sessionId);
       if (player) { resumePlayer(socket, room, player); return; }
     }
 
     if (room.game.phase !== 'lobby') {
-      socket.emit('error_msg', 'ゲームはすでに始まっています。次のゲームをお待ちください。');
+      socket.emit('error_msg', 'ゲームはすでに始まっています。別のルームを選んでください。');
       return;
     }
 
     if (room.game.players.length >= MAX_PLAYERS) {
-      socket.emit('error_msg', 'このルームは満員です（最大6人）。');
+      socket.emit('error_msg', 'このルームは満員です。');
       return;
     }
 
@@ -634,7 +662,7 @@ io.on('connection', (socket) => {
     if (game.phase !== 'lobby') return;
     const me = game.players.find((p) => p.id === socket.id);
     if (!me?.isHost) return;
-    if (game.players.length < 2) { socket.emit('error_msg', 'プレイヤーが2人以上必要です。'); return; }
+    if (game.players.length < 2) { socket.emit('error_msg', 'プレイヤーは2人以上必要です。'); return; }
 
     game.drawerIndex = Math.floor(Math.random() * game.players.length);
     game.players.forEach((p, i) => { p.isDrawer = i === game.drawerIndex; });
@@ -799,13 +827,13 @@ io.on('connection', (socket) => {
     soloUsedTopics.set(socket.id, used);
     soloCurrentTopics.set(socket.id, topic);
     socket.emit('solo_topic', topic);
-    console.log(`[Solo] Topic: "${topic}" (used: ${used.length}) → ${socket.id}`);
+    console.log(`[Solo] Topic: "${topic}" (used: ${used.length}) 竊・${socket.id}`);
   });
 
   socket.on('solo_submit_drawing', async ({ imageData }) => {
     if (!imageData || typeof imageData !== 'string' || imageData.length > MAX_IMAGE_B64_LEN) return;
     if (!canCallAI(socket.id)) {
-      socket.emit('error_msg', '送信が速すぎます。少し待ってから再送信してください。');
+      socket.emit('error_msg', '画像が大きすぎます。少し減らしてから送信してください。');
       return;
     }
     const cleanTopic = soloCurrentTopics.get(socket.id) || '';
@@ -828,14 +856,14 @@ io.on('connection', (socket) => {
           role: 'user',
           content: [
             { type: 'image_url', image_url: { url: `data:image/png;base64,${base64}`, detail: 'high' } },
-            { type: 'text', text: 'このイラストが何かを日本語の短い名詞ひとつで答えてください。説明文や言い訳は不要です。' },
+            { type: 'text', text: 'Guess the Japanese noun this drawing represents. Return only the guessed word, with no explanation.' },
           ],
         }],
       });
       const raw = response.choices[0].message.content.trim();
-      const REFUSAL = /申し訳|できません|すみません|不適切|I'm sorry|I cannot|inappropriate/i;
+      const REFUSAL = /拒否|できません|すみません|I'm sorry|I cannot|inappropriate/i;
       if (REFUSAL.test(raw)) {
-        socket.emit('solo_result', { aiGuess: '（回答できませんでした）', correct: false, topic: cleanTopic, aiFiltered: true });
+        socket.emit('solo_result', { aiGuess: '判定不能', correct: false, topic: cleanTopic, aiFiltered: true });
         return;
       }
       const m = raw.match(/[ぁ-んァ-ン一-龠A-Za-z0-9ー]+/);
@@ -876,3 +904,5 @@ const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
   console.log(`[Startup] Server listening on http://localhost:${PORT}`);
 });
+
+

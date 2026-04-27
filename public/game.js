@@ -422,7 +422,7 @@ function startBgm(mode) {
   bgmNextNoteTime = ctx.currentTime + 0.03;
   output.gain.cancelScheduledValues(ctx.currentTime);
   output.gain.setValueAtTime(Math.max(output.gain.value, 0.0001), ctx.currentTime);
-  output.gain.exponentialRampToValueAtTime(mode === 'results' ? 0.145 : 0.11, ctx.currentTime + 0.25);
+  output.gain.exponentialRampToValueAtTime(mode === 'results' ? 0.145 : 0.16, ctx.currentTime + 0.25);
   scheduleBgmLoop();
   bgmTimer = setInterval(scheduleBgmLoop, BGM_LOOKAHEAD_MS);
 }
