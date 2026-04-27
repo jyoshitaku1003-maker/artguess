@@ -483,7 +483,7 @@ function finalizeDisconnect(room, sessionId) {
 
 // ---- topic choices ----
 
-const TOPIC_FALLBACK = ['海', '花', '星', '雨', '風', '森', '山', '月', '鳥', '炎'];
+const TOPIC_FALLBACK = ['蜃気楼', '流星群', '迷宮', '火山灰', '万華鏡', '月食', '深海魚', '灯台', '滑走路', '珊瑚礁'];
 
 async function generateTopicChoices(usedTopics = []) {
   const availableFallback = TOPIC_FALLBACK.filter((t) => !usedTopics.includes(t));
@@ -500,7 +500,7 @@ async function generateTopicChoices(usedTopics = []) {
       response_format: { type: 'json_object' },
       messages: [{
         role: 'user',
-        content: `Generate exactly 3 Japanese drawing-game topics. Each topic must be a single Japanese noun word only. No phrases, no "AのB", no punctuation, no spaces, and no explanation. Keep them short and easy to draw. Return JSON only in the form {"topics":["topic1","topic2","topic3"]}.${exclusion}`,
+        content: `Generate exactly 3 Japanese drawing-game topics. Each topic must be a single Japanese noun word only. No phrases, no "AのB", no punctuation, no spaces, and no explanation. Make them a little challenging: not ultra-basic words like 猫, 車, 花, 山, but still drawable and understandable at a glance. Prefer evocative nouns, places, phenomena, objects, or creatures. Return JSON only in the form {"topics":["topic1","topic2","topic3"]}.${exclusion}`,
       }],
     });
     const raw = JSON.parse(resp.choices[0].message.content);
@@ -519,7 +519,7 @@ async function generateTopicChoices(usedTopics = []) {
 
 // ---- solo mode ----
 
-const SOLO_TOPIC_FALLBACK = ['猫', '犬', '魚', '家', '山', '木', '車', '船', '傘', '鳥'];
+const SOLO_TOPIC_FALLBACK = ['迷宮', '灯台', '化石', '風車', '珊瑚礁', '滑走路', '万華鏡', '深海魚', '望遠鏡', '火口'];
 const soloUsedTopics = new Map(); // socketId -> string[]
 
 async function generateSoloTopic(usedTopics = []) {
@@ -537,7 +537,7 @@ async function generateSoloTopic(usedTopics = []) {
       max_tokens: 20,
       messages: [{
         role: 'user',
-        content: `Generate 1 Japanese drawing-game topic. It must be a single noun word only. No phrases, no "AのB", no punctuation, no spaces, and no explanation. Return only the topic word.${exclusion}`,
+        content: `Generate 1 Japanese drawing-game topic. It must be a single noun word only. No phrases, no "AのB", no punctuation, no spaces, and no explanation. Make it a little challenging but still drawable and understandable. Avoid ultra-basic words like 猫, 車, 花, 山. Return only the topic word.${exclusion}`,
       }],
     });
     const raw = cleanTopicWord(resp.choices[0].message.content);
