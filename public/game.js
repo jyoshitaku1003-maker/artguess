@@ -207,7 +207,7 @@ function triggerButtonSound(kind = 'forward') {
 
 const BGM_LOOKAHEAD_MS = 120;
 const BGM_SCHEDULE_AHEAD_SEC = 0.45;
-const GAME_BGM_STEP_SEC = 60 / 84 / 2;
+const GAME_BGM_STEP_SEC = 60 / 68 / 2;
 const RESULT_BGM_STEP_SEC = 60 / 96 / 2;
 
 function midiToHz(note) {
@@ -325,26 +325,26 @@ function scheduleGameplayStep(time, step) {
   const localStep = step % 16;
   const chordIndex = Math.floor(localStep / 4);
   const chords = [
-    [50, 57, 60],
-    [48, 55, 58],
-    [53, 57, 60],
-    [46, 53, 57],
+    [38, 45, 50],
+    [36, 43, 48],
+    [41, 48, 53],
+    [34, 41, 46],
   ];
-  const bass = [38, null, 45, null, 41, null, 45, null, 34, null, 41, null, 46, null, 41, null];
-  const lead = [74, null, 77, 79, null, 81, 79, null, 76, null, 74, 72, null, 74, 76, null];
-  const echo = [86, null, null, 84, null, 86, null, 88, 84, null, null, 83, null, 84, null, 86];
-  const shimmer = [81, null, null, null, 79, null, null, null, 84, null, null, null, 79, null, null, null];
+  const subBass = [26, null, null, null, 24, null, null, null, 29, null, null, null, 22, null, null, null];
+  const pulse = [null, 50, null, null, null, 48, null, null, null, 53, null, null, null, 46, null, null];
+  const shimmer = [74, null, null, 77, null, null, 76, null, 79, null, null, 81, null, null, 77, null];
+  const air = [86, null, 84, null, null, 83, null, null, 88, null, 86, null, null, 84, null, null];
 
   if (localStep % 4 === 0) {
-    scheduleBgmPad(chords[chordIndex], time, GAME_BGM_STEP_SEC * 4.35, 0.082);
+    scheduleBgmPad(chords[chordIndex], time, GAME_BGM_STEP_SEC * 5.8, 0.06);
   }
-  if (localStep % 2 === 0) {
-    scheduleBgmPulse(26, time, 0.068);
+  if (localStep % 8 === 0) {
+    scheduleBgmPulse(24 + chordIndex, time, 0.05);
   }
-  scheduleBgmPluck(bass[localStep], time, GAME_BGM_STEP_SEC * 1.05, 0.082, 'triangle');
-  scheduleBgmPluck(lead[localStep], time + 0.02, GAME_BGM_STEP_SEC * 0.78, 0.052, 'triangle');
-  scheduleBgmPluck(echo[localStep], time + 0.11, GAME_BGM_STEP_SEC * 0.52, 0.028, 'sine');
-  scheduleBgmShimmer(shimmer[localStep], time + 0.09, GAME_BGM_STEP_SEC * 1.5, 0.018);
+  scheduleBgmPluck(subBass[localStep], time, GAME_BGM_STEP_SEC * 2.4, 0.048, 'sine');
+  scheduleBgmPluck(pulse[localStep], time + 0.03, GAME_BGM_STEP_SEC * 1.2, 0.018, 'triangle');
+  scheduleBgmShimmer(shimmer[localStep], time + 0.12, GAME_BGM_STEP_SEC * 2.7, 0.018);
+  scheduleBgmShimmer(air[localStep], time + 0.2, GAME_BGM_STEP_SEC * 2.2, 0.011);
 }
 
 function scheduleResultStep(time, step) {
@@ -422,7 +422,7 @@ function startBgm(mode) {
   bgmNextNoteTime = ctx.currentTime + 0.03;
   output.gain.cancelScheduledValues(ctx.currentTime);
   output.gain.setValueAtTime(Math.max(output.gain.value, 0.0001), ctx.currentTime);
-  output.gain.exponentialRampToValueAtTime(mode === 'results' ? 0.145 : 0.16, ctx.currentTime + 0.25);
+  output.gain.exponentialRampToValueAtTime(mode === 'results' ? 0.145 : 0.11, ctx.currentTime + 0.25);
   scheduleBgmLoop();
   bgmTimer = setInterval(scheduleBgmLoop, BGM_LOOKAHEAD_MS);
 }
