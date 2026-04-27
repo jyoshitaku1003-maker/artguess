@@ -119,26 +119,32 @@ function playButtonTapTone() {
   const oscA = ctx.createOscillator();
   const oscB = ctx.createOscillator();
   const gain = ctx.createGain();
+  const filter = ctx.createBiquadFilter();
 
-  oscA.type = 'triangle';
-  oscB.type = 'square';
-  oscA.frequency.setValueAtTime(1040, start);
-  oscA.frequency.exponentialRampToValueAtTime(760, start + 0.06);
-  oscB.frequency.setValueAtTime(760, start + 0.003);
-  oscB.frequency.exponentialRampToValueAtTime(560, start + 0.06);
+  oscA.type = 'square';
+  oscB.type = 'sawtooth';
+  oscA.frequency.setValueAtTime(920, start);
+  oscA.frequency.exponentialRampToValueAtTime(610, start + 0.045);
+  oscB.frequency.setValueAtTime(460, start + 0.002);
+  oscB.frequency.exponentialRampToValueAtTime(280, start + 0.045);
+  filter.type = 'bandpass';
+  filter.frequency.setValueAtTime(1450, start);
+  filter.Q.value = 1.6;
 
   gain.gain.setValueAtTime(0.0001, start);
-  gain.gain.linearRampToValueAtTime(0.13, start + 0.004);
-  gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.085);
+  gain.gain.linearRampToValueAtTime(0.12, start + 0.003);
+  gain.gain.exponentialRampToValueAtTime(0.018, start + 0.028);
+  gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.06);
 
-  oscA.connect(gain);
-  oscB.connect(gain);
+  oscA.connect(filter);
+  oscB.connect(filter);
+  filter.connect(gain);
   gain.connect(output);
 
   oscA.start(start);
   oscB.start(start);
-  oscA.stop(start + 0.09);
-  oscB.stop(start + 0.09);
+  oscA.stop(start + 0.065);
+  oscB.stop(start + 0.065);
 }
 
 function playBackButtonTone() {
