@@ -506,11 +506,9 @@ window.addEventListener('touchend', primeAudio, { once: true });
 window.addEventListener('click', primeAudio, { once: true });
 window.addEventListener('keydown', primeAudio, { once: true });
 
-// button click sound — applied globally except buttons that already have distinct sounds
-const SOUND_SKIP_IDS = new Set(['create-room-btn', 'start-btn']);
 document.addEventListener('click', (e) => {
-  const btn = e.target.closest('.btn');
-  if (!btn || SOUND_SKIP_IDS.has(btn.id)) return;
+  if (!e.target.closest('.btn')) return;
+  primeAudio();
   playButtonClick();
 });
 
