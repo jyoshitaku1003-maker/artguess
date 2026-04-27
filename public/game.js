@@ -23,6 +23,18 @@ let soloStreak           = 0;
 let soloTopic            = null;
 let soloCurrentImageData = null;
 const SOLO_BEST_KEY      = 'artguessSoloBest';
+const MULTI_TOPIC_GENRES = [
+  '食べ物',
+  '生き物',
+  '感情',
+  '歴史',
+  '医療',
+  '国名',
+  '職業',
+  '科学',
+  'スポーツ',
+  'ジャンルなし',
+];
 
 function getSoloBest() { return parseInt(localStorage.getItem(SOLO_BEST_KEY) || '0'); }
 function updateSoloBest(n) {
@@ -1625,15 +1637,38 @@ socket.on('game_update', (state) => {
   if (state.phase !== 'topic_input') topicInputSetupDone = false;
 });
 
-socket.on('choose_topic', ({ choices }) => {
-  buildTopicChoices(choices);
+socket.on('choose_topic', ({ choices, genre }) => {
+  buildTopicChoices(choices, genre);
   $('topic-input-drawer').classList.remove('hidden');
   $('topic-input-spectator').classList.add('hidden');
+  $('topic-host-wait')?.classList.add('hidden');
+  $('topic-genre-host')?.classList.add('hidden');
 });
 
-function buildTopicChoices(choices) {
+function buildGenreChoices(selectedGenre = '') {
+  const container = $('genre-choices');
+  if (!container) return;
+  container.innerHTML = '';
+  MULTI_TOPIC_GENRES.forEach((genre) => {
+    const btn = document.createElement('button');
+    btn.className = 'btn topic-choice-btn';
+    btn.textContent = genre;
+    if (genre === selectedGenre) btn.classList.add('selected');
+    btn.addEventListener('click', () => {
+      triggerButtonSound();
+      container.querySelectorAll('button').forEach((button) => { button.disabled = true; });
+      btn.classList.add('selected');
+      socket.emit('submit_genre', { genre });
+    });
+    container.appendChild(btn);
+  });
+}
+
+function buildTopicChoices(choices, genre = '') {
   const container = $('topic-choices');
   container.innerHTML = '';
+  const genreLabel = $('topic-genre-label');
+  if (genreLabel) genreLabel.textContent = genre ? `ジャンル: ${genre}` : '';
   (choices || []).forEach(topic => {
     const btn = document.createElement('button');
     btn.className = 'btn topic-choice-btn';
@@ -1650,13 +1685,39 @@ function buildTopicChoices(choices) {
 
 function setupTopicInputScreen(state) {
   const me = state.players.find(p => p.id === myId);
-  if (me?.isDrawer) {
-    $('topic-input-drawer').classList.add('hidden');
-    $('topic-input-spectator').classList.add('hidden');
-  } else {
-    $('topic-input-drawer').classList.add('hidden');
-    $('topic-input-spectator').classList.remove('hidden');
+  const isHost = me?.isHost ?? false;
+  const isDrawer = me?.isDrawer ?? false;
+  const genreSelected = !!state.selectedGenre;
+  const choicesReady = !!state.topicChoicesReady;
+  const spectatorText = $('topic-spectator-text');
+  const genreCard = $('topic-genre-host');
+  const hostWait = $('topic-host-wait');
+  const drawerCard = $('topic-input-drawer');
+  const spectatorCard = $('topic-input-spectator');
+
+  if (genreCard) genreCard.classList.add('hidden');
+  if (hostWait) hostWait.classList.add('hidden');
+  if (drawerCard) drawerCard.classList.add('hidden');
+  if (spectatorCard) spectatorCard.classList.add('hidden');
+
+  if (isHost && !genreSelected) {
+    buildGenreChoices();
+    if (genreCard) genreCard.classList.remove('hidden');
+    if (spectatorText) spectatorText.textContent = 'ホストがジャンルを選んでいます';
+    return;
   }
+
+  if (isHost && genreSelected && !isDrawer) {
+    if (hostWait) hostWait.classList.remove('hidden');
+    return;
+  }
+
+  if (spectatorText) {
+    spectatorText.textContent = genreSelected
+      ? '描く人がお題を選んでいます'
+      : 'ホストがジャンルを選んでいます';
+  }
+  if (spectatorCard) spectatorCard.classList.remove('hidden');
 }
 
 // ===== DRAWING PHASE SETUP =====

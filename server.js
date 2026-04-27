@@ -68,6 +68,7 @@ function freshGame() {
     players: [],
     drawerIndex: -1,
     topic: '',
+    selectedGenre: '',
     topicChoices: [],
     usedTopics: [],
     drawingData: null,
@@ -196,6 +197,8 @@ function publicState(room) {
     scores: { ...game.scores },
     isSuddenDeath: game.isSuddenDeath,
     drawingData: game.drawingData,
+    selectedGenre: game.selectedGenre,
+    topicChoicesReady: game.topicChoices.length > 0,
   };
 }
 
@@ -483,11 +486,39 @@ function finalizeDisconnect(room, sessionId) {
 
 // ---- topic choices ----
 
+const TOPIC_GENRES = [
+  '食べ物',
+  '生き物',
+  '感情',
+  '歴史',
+  '医療',
+  '国名',
+  '職業',
+  '科学',
+  'スポーツ',
+  'ジャンルなし',
+];
+
+const TOPIC_FALLBACK_BY_GENRE = {
+  '食べ物': ['餃子', '羊羹', '寿司', '蜜柑', '煎餅', '天ぷら', '林檎', '珈琲', '大福', '焼売'],
+  '生き物': ['深海魚', '蛍', '白鳥', '蛸', '海月', '孔雀', '蜥蜴', '駱駝', '梟', '海豹'],
+  '感情': ['嫉妬', '安心', '後悔', '緊張', '陶酔', '絶望', '憧憬', '焦燥', '幸福', '怒り'],
+  '歴史': ['戦国', '王冠', '城壁', '遺跡', '古墳', '刀剣', '年表', '紋章', '革命', '埴輪'],
+  '医療': ['聴診器', '注射器', '手術', '処方箋', '病棟', '包帯', '心電図', '救急車', '白衣', '体温計'],
+  '国名': ['日本', 'エジプト', 'ブラジル', 'イタリア', 'インド', 'カナダ', 'ケニア', 'タイ', 'ペルー', 'モロッコ'],
+  '職業': ['探偵', '画家', '漁師', '建築家', '司書', '料理人', '記者', '庭師', '宇宙飛行士', '消防士'],
+  '科学': ['重力', '磁石', '分子', '原子', '化石', '彗星', '電流', '細胞', '惑星', '光速'],
+  'スポーツ': ['柔道', '水泳', '体操', '卓球', '剣道', '野球', '相撲', 'ゴルフ', '馬術', '射撃'],
+  'ジャンルなし': ['迷宮', '灯台', '万華鏡', '滑走路', '珊瑚礁', '火山灰', '蜃気楼', '月食', '風車', '望遠鏡'],
+};
+
 const TOPIC_FALLBACK = ['蜃気楼', '流星群', '迷宮', '火山灰', '万華鏡', '月食', '深海魚', '灯台', '滑走路', '珊瑚礁'];
 
-async function generateTopicChoices(usedTopics = []) {
-  const availableFallback = TOPIC_FALLBACK.filter((t) => !usedTopics.includes(t));
-  const fallback = availableFallback.length >= 3 ? availableFallback.slice(0, 3) : TOPIC_FALLBACK.slice(0, 3);
+async function generateTopicChoices(usedTopics = [], genre = 'ジャンルなし') {
+  const genrePool = TOPIC_FALLBACK_BY_GENRE[genre] || TOPIC_FALLBACK;
+  const availableFallback = genrePool.filter((t) => !usedTopics.includes(t));
+  const extraFallback = TOPIC_FALLBACK.filter((t) => !usedTopics.includes(t) && !availableFallback.includes(t));
+  const fallback = availableFallback.concat(extraFallback).slice(0, 3);
   if (!openai) return fallback;
 
   const exclusion = usedTopics.length > 0
@@ -500,7 +531,7 @@ async function generateTopicChoices(usedTopics = []) {
       response_format: { type: 'json_object' },
       messages: [{
         role: 'user',
-        content: `Generate exactly 3 Japanese drawing-game topics. Each topic must be a single Japanese noun word only. No phrases, no "AのB", no punctuation, no spaces, and no explanation. Make them a little challenging: not ultra-basic words like 猫, 車, 花, 山, but still drawable and understandable at a glance. Prefer evocative nouns, places, phenomena, objects, or creatures. Return JSON only in the form {"topics":["topic1","topic2","topic3"]}.${exclusion}`,
+        content: `Generate exactly 3 Japanese drawing-game topics for the genre "${genre}". Each topic must be a single Japanese noun word only. No phrases, no "AのB", no punctuation, no spaces, and no explanation. Make them a little challenging: not ultra-basic words like 猫, 車, 花, 山, but still drawable and understandable at a glance. Prefer evocative nouns, places, phenomena, objects, or creatures. Return JSON only in the form {"topics":["topic1","topic2","topic3"]}.${exclusion}`,
       }],
     });
     const raw = JSON.parse(resp.choices[0].message.content);
@@ -509,6 +540,8 @@ async function generateTopicChoices(usedTopics = []) {
         .map(cleanTopicWord)
         .filter((topic, index, arr) => isSingleWordTopic(topic) && !usedTopics.includes(topic) && arr.indexOf(topic) === index);
       if (cleaned.length >= 3) return cleaned.slice(0, 3);
+      const merged = cleaned.concat(fallback.filter((topic) => !cleaned.includes(topic)));
+      if (merged.length > 0) return merged.slice(0, 3);
     }
     return fallback;
   } catch (err) {
@@ -666,13 +699,30 @@ io.on('connection', (socket) => {
 
     game.drawerIndex = Math.floor(Math.random() * game.players.length);
     game.players.forEach((p, i) => { p.isDrawer = i === game.drawerIndex; });
-    game.topic = ''; game.topicChoices = []; game.phase = 'topic_input';
+    game.topic = ''; game.selectedGenre = ''; game.topicChoices = []; game.phase = 'topic_input';
     game.guesses = {}; game.drawingData = null; game.aiGuess = null;
 
     io.to(room.code).emit('game_update', publicState(room));
-    const choices = await generateTopicChoices(game.usedTopics);
+  });
+
+  socket.on('submit_genre', async ({ genre }) => {
+    const room = getRoom(socket.id);
+    if (!room) return;
+    const { game } = room;
+    if (game.phase !== 'topic_input') return;
+    const me = game.players.find((p) => p.id === socket.id);
+    if (!me?.isHost) return;
+
+    const trimmed = String(genre ?? '').trim();
+    if (!TOPIC_GENRES.includes(trimmed)) return;
+
+    game.selectedGenre = trimmed;
+    const choices = await generateTopicChoices(game.usedTopics, trimmed);
     game.topicChoices = choices;
-    io.to(game.players[game.drawerIndex].id).emit('choose_topic', { choices });
+    game.usedTopics.push(...choices.filter((topic, index, arr) => !game.usedTopics.includes(topic) && arr.indexOf(topic) === index));
+
+    io.to(room.code).emit('game_update', publicState(room));
+    io.to(game.players[game.drawerIndex].id).emit('choose_topic', { choices, genre: trimmed });
   });
 
   socket.on('submit_topic', ({ topic }) => {
@@ -682,12 +732,13 @@ io.on('connection', (socket) => {
     if (game.phase !== 'topic_input') return;
     const me = game.players.find((p) => p.id === socket.id);
     if (!me?.isDrawer) return;
+    if (!game.selectedGenre || game.topicChoices.length === 0) return;
 
     const trimmed = String(topic ?? '').trim().slice(0, 20);
     if (!trimmed) return;
+    if (!game.topicChoices.includes(trimmed)) return;
 
     game.topic = trimmed;
-    game.usedTopics.push(trimmed);
     game.phase = 'drawing';
     io.to(room.code).emit('game_update', publicState(room));
     io.to(me.id).emit('your_topic', game.topic);
@@ -704,13 +755,10 @@ io.on('connection', (socket) => {
 
     game.drawerIndex = Math.floor(Math.random() * game.players.length);
     game.players.forEach((p, i) => { p.isDrawer = i === game.drawerIndex; });
-    game.topic = ''; game.topicChoices = []; game.phase = 'topic_input';
+    game.topic = ''; game.selectedGenre = ''; game.topicChoices = []; game.phase = 'topic_input';
     game.guesses = {}; game.drawingData = null; game.aiGuess = null; game.timeLeft = ROUND_SECONDS;
 
     io.to(room.code).emit('game_update', publicState(room));
-    const choices = await generateTopicChoices(game.usedTopics);
-    game.topicChoices = choices;
-    io.to(game.players[game.drawerIndex].id).emit('choose_topic', { choices });
   });
 
   socket.on('draw_stroke', (strokeData) => {

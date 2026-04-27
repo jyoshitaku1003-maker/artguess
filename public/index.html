@@ -85,12 +85,22 @@
   <!-- ===== TOPIC INPUT ===== -->
   <div id="screen-topic" class="screen">
     <div class="container">
+      <div id="topic-genre-host" class="card hidden">
+        <h3 class="section-title">ジャンルを選んでください</h3>
+        <p class="hint">ホストが今回のジャンルを決めます</p>
+        <div id="genre-choices" class="topic-choices"></div>
+      </div>
+      <div id="topic-host-wait" class="card hidden">
+        <p class="muted">ホストがジャンルを選ぶまでお待ちください</p>
+      </div>
       <div id="topic-input-drawer" class="card hidden">
+        <p id="topic-genre-label" class="hint"></p>
         <h3 class="section-title">お題を選んでください</h3>
         <p class="hint">お題を1つ選んで描こう！</p>
         <div id="topic-choices" class="topic-choices"></div>
       </div>
       <div id="topic-input-spectator" class="card hidden">
+        <p id="topic-spectator-text" class="muted">ホストがジャンルを選んでいます</p>
         <p class="muted">🎨 絵を描く人がお題を選んでいます…</p>
       </div>
 
