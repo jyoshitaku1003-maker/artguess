@@ -60,6 +60,7 @@ let eraserOn      = false;
 const $ = id => document.getElementById(id);
 let devHoldTimer = null;
 let resultsTerminalTimer = null;
+let soloTerminalTimer = null;
 let pendingFinalResults = null;
 let showingFinalResults = false;
 
@@ -423,6 +424,77 @@ function renderResultsTerminal(res, onComplete = () => {}) {
   });
 
   playTerminalLines(linesEl, queuedLines, onComplete);
+}
+
+function clearSoloTerminalAnimation() {
+  if (!soloTerminalTimer) return;
+  clearTimeout(soloTerminalTimer);
+  soloTerminalTimer = null;
+}
+
+function playSoloTerminalLines(linesEl, queuedLines) {
+  clearSoloTerminalAnimation();
+  linesEl.innerHTML = '';
+  let index = 0;
+  function paintNextLine() {
+    if (index >= queuedLines.length) { soloTerminalTimer = null; return; }
+    const { text, className } = queuedLines[index++];
+    const line = document.createElement('div');
+    line.className = `howto-line result-line${className ? ` ${className}` : ''}`;
+    linesEl.appendChild(line);
+    linesEl.scrollTop = linesEl.scrollHeight;
+    if (!text) {
+      soloTerminalTimer = setTimeout(paintNextLine, RESULTS_TERMINAL_SPACER_DELAY_MS);
+      return;
+    }
+    let charIndex = 0;
+    function typeNextChar() {
+      if (charIndex >= text.length) {
+        soloTerminalTimer = setTimeout(paintNextLine, RESULTS_TERMINAL_TEXT_DELAY_MS);
+        return;
+      }
+      line.textContent += text[charIndex++];
+      linesEl.scrollTop = linesEl.scrollHeight;
+      soloTerminalTimer = setTimeout(typeNextChar, getResultsTerminalCharDelay(text[charIndex - 1]));
+    }
+    typeNextChar();
+  }
+  paintNextLine();
+}
+
+function renderSoloResultTerminal({ aiGuess, correct, topic, aiFiltered, streak, prevStreak }) {
+  const linesEl = $('solo-result-terminal-lines');
+  if (!linesEl) return;
+
+  const lines = [];
+  lines.push({ text: '> DRAWING UPLOAD :: complete', className: 'result-dim' });
+  lines.push({ text: '> AI_SCAN :: neural pattern recognition — initializing...', className: 'result-dim' });
+  lines.push({ text: '', className: 'result-spacer' });
+
+  if (aiFiltered) {
+    lines.push({ text: '> AI_SCAN :: CONTENT FILTER TRIGGERED — 回答不能', className: 'result-wrong' });
+    lines.push({ text: '', className: 'result-spacer' });
+    lines.push({ text: `> お題 :: ${topic}`, className: 'result-topic-line' });
+    lines.push({ text: '> VERDICT :: VOID — 判定スキップ', className: 'result-dim' });
+  } else {
+    lines.push({ text: `> AI :: ${aiGuess}`, className: correct ? 'result-correct' : 'result-wrong' });
+    lines.push({ text: '', className: 'result-spacer' });
+    lines.push({ text: `> お題 :: ${topic}`, className: 'result-topic-line' });
+    lines.push({ text: '', className: 'result-spacer' });
+    if (correct) {
+      lines.push({ text: '> VERDICT :: RECOGNIZED — 絵師の意図、AIに届いた', className: 'result-correct' });
+      lines.push({ text: `> STREAK :: ${streak}問連続正解 — 画力認定済み`, className: 'result-topic-line' });
+    } else {
+      lines.push({ text: '> VERDICT :: UNRECOGNIZED — AIの理解を超えた絵だった', className: 'result-wrong' });
+      if (prevStreak > 0) {
+        lines.push({ text: `> STREAK BROKEN :: ${prevStreak}問連続記録 — リセット`, className: 'result-dim' });
+      } else {
+        lines.push({ text: '> STREAK :: 0 — まだ記録なし', className: 'result-dim' });
+      }
+    }
+  }
+
+  playSoloTerminalLines(linesEl, lines);
 }
 
 window.addEventListener('pointerdown', primeAudio, { once: true });
@@ -1046,6 +1118,7 @@ socket.on('solo_session_result', (ok) => {
 });
 
 function exitSoloMode() {
+  clearSoloTerminalAnimation();
   soloMode = false;
   soloStreak = 0;
   soloTopic = null;
@@ -1083,6 +1156,8 @@ socket.on('solo_result', ({ aiGuess, correct, topic, aiFiltered }) => {
 
   $('solo-result-topic').textContent = topic;
   $('solo-ai-guess').textContent = aiGuess || '（回答なし）';
+
+  renderSoloResultTerminal({ aiGuess, correct, topic, aiFiltered, streak: soloStreak, prevStreak });
 
   const aiCard = $('solo-ai-card');
   aiCard.classList.toggle('correct-card', !!correct);

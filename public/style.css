@@ -935,6 +935,18 @@ input[type="range"] {
   white-space: normal;
 }
 
+.solo-result-terminal {
+  margin-bottom: 18px;
+}
+
+.solo-result-terminal-lines {
+  height: auto;
+  min-height: 0;
+  max-height: 10rem;
+  overflow-y: auto;
+  white-space: normal;
+}
+
 .result-line {
   white-space: pre-wrap;
   word-break: break-word;
