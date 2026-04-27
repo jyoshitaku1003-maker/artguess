@@ -80,7 +80,7 @@ function getMasterGain() {
   if (!ctx) return null;
   if (!masterGain) {
     masterGain = ctx.createGain();
-    masterGain.gain.value = 0.12;
+    masterGain.gain.value = 0.2;
     masterGain.connect(ctx.destination);
   }
   return masterGain;
@@ -121,13 +121,15 @@ function playButtonTapTone() {
   const gain = ctx.createGain();
 
   oscA.type = 'triangle';
-  oscB.type = 'triangle';
-  oscA.frequency.setValueAtTime(1320, start);
-  oscB.frequency.setValueAtTime(880, start + 0.004);
+  oscB.type = 'square';
+  oscA.frequency.setValueAtTime(1480, start);
+  oscA.frequency.exponentialRampToValueAtTime(1060, start + 0.055);
+  oscB.frequency.setValueAtTime(980, start + 0.003);
+  oscB.frequency.exponentialRampToValueAtTime(740, start + 0.055);
 
   gain.gain.setValueAtTime(0.0001, start);
-  gain.gain.linearRampToValueAtTime(0.08, start + 0.004);
-  gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.07);
+  gain.gain.linearRampToValueAtTime(0.13, start + 0.004);
+  gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.085);
 
   oscA.connect(gain);
   oscB.connect(gain);
@@ -135,8 +137,8 @@ function playButtonTapTone() {
 
   oscA.start(start);
   oscB.start(start);
-  oscA.stop(start + 0.08);
-  oscB.stop(start + 0.08);
+  oscA.stop(start + 0.09);
+  oscB.stop(start + 0.09);
 }
 
 function playBackButtonTone() {
@@ -151,14 +153,14 @@ function playBackButtonTone() {
 
   oscA.type = 'triangle';
   oscB.type = 'sine';
-  oscA.frequency.setValueAtTime(720, start);
-  oscA.frequency.exponentialRampToValueAtTime(460, start + 0.09);
-  oscB.frequency.setValueAtTime(540, start + 0.003);
-  oscB.frequency.exponentialRampToValueAtTime(320, start + 0.09);
+  oscA.frequency.setValueAtTime(760, start);
+  oscA.frequency.exponentialRampToValueAtTime(380, start + 0.11);
+  oscB.frequency.setValueAtTime(510, start + 0.003);
+  oscB.frequency.exponentialRampToValueAtTime(250, start + 0.11);
 
   gain.gain.setValueAtTime(0.0001, start);
-  gain.gain.linearRampToValueAtTime(0.06, start + 0.005);
-  gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.11);
+  gain.gain.linearRampToValueAtTime(0.1, start + 0.005);
+  gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.13);
 
   oscA.connect(gain);
   oscB.connect(gain);
@@ -166,8 +168,8 @@ function playBackButtonTone() {
 
   oscA.start(start);
   oscB.start(start);
-  oscA.stop(start + 0.12);
-  oscB.stop(start + 0.12);
+  oscA.stop(start + 0.14);
+  oscB.stop(start + 0.14);
 }
 
 function triggerButtonSound(kind = 'forward') {
@@ -199,8 +201,8 @@ function triggerButtonSound(kind = 'forward') {
 
 const BGM_LOOKAHEAD_MS = 120;
 const BGM_SCHEDULE_AHEAD_SEC = 0.45;
-const GAME_BGM_STEP_SEC = 60 / 92 / 2;
-const RESULT_BGM_STEP_SEC = 60 / 76 / 2;
+const GAME_BGM_STEP_SEC = 60 / 84 / 2;
+const RESULT_BGM_STEP_SEC = 60 / 96 / 2;
 
 function midiToHz(note) {
   return 440 * Math.pow(2, (note - 69) / 12);
@@ -218,10 +220,10 @@ function scheduleBgmPluck(note, start, duration, volume, type = 'triangle') {
   osc.type = type;
   osc.frequency.setValueAtTime(midiToHz(note), start);
   filter.type = 'lowpass';
-  filter.frequency.setValueAtTime(type === 'sine' ? 900 : 1800, start);
+  filter.frequency.setValueAtTime(type === 'sine' ? 1200 : 2200, start);
   gain.gain.setValueAtTime(0.0001, start);
   gain.gain.linearRampToValueAtTime(volume, start + 0.01);
-  gain.gain.exponentialRampToValueAtTime(Math.max(volume * 0.18, 0.0001), start + duration * 0.45);
+  gain.gain.exponentialRampToValueAtTime(Math.max(volume * 0.26, 0.0001), start + duration * 0.5);
   gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
 
   osc.connect(filter);
@@ -245,10 +247,10 @@ function scheduleBgmPad(notes, start, duration, volume) {
     osc.type = index % 2 === 0 ? 'triangle' : 'sine';
     osc.frequency.setValueAtTime(midiToHz(note), start);
     filter.type = 'lowpass';
-    filter.frequency.setValueAtTime(1100, start);
+    filter.frequency.setValueAtTime(1650, start);
     gain.gain.setValueAtTime(0.0001, start);
-    gain.gain.linearRampToValueAtTime(volume / notes.length, start + 0.12);
-    gain.gain.linearRampToValueAtTime((volume / notes.length) * 0.75, start + duration * 0.65);
+    gain.gain.linearRampToValueAtTime(volume / notes.length, start + 0.22);
+    gain.gain.linearRampToValueAtTime((volume / notes.length) * 0.82, start + duration * 0.7);
     gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
 
     osc.connect(filter);
@@ -273,7 +275,7 @@ function scheduleBgmPulse(note, start, volume) {
   osc.frequency.setValueAtTime(midiToHz(note), start);
   osc.frequency.exponentialRampToValueAtTime(midiToHz(note - 12), start + 0.12);
   filter.type = 'lowpass';
-  filter.frequency.setValueAtTime(420, start);
+  filter.frequency.setValueAtTime(560, start);
   gain.gain.setValueAtTime(0.0001, start);
   gain.gain.linearRampToValueAtTime(volume, start + 0.005);
   gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.14);
@@ -286,50 +288,81 @@ function scheduleBgmPulse(note, start, volume) {
   osc.stop(start + 0.16);
 }
 
+function scheduleBgmShimmer(note, start, duration, volume) {
+  const ctx = getAudioContext();
+  const output = getBgmGain();
+  if (!ctx || !output || note == null) return;
+
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  const filter = ctx.createBiquadFilter();
+
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(midiToHz(note), start);
+  osc.frequency.linearRampToValueAtTime(midiToHz(note + 5), start + duration * 0.45);
+  filter.type = 'bandpass';
+  filter.frequency.setValueAtTime(1900, start);
+  filter.Q.value = 1.8;
+  gain.gain.setValueAtTime(0.0001, start);
+  gain.gain.linearRampToValueAtTime(volume, start + 0.04);
+  gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
+
+  osc.connect(filter);
+  filter.connect(gain);
+  gain.connect(output);
+
+  osc.start(start);
+  osc.stop(start + duration + 0.03);
+}
+
 function scheduleGameplayStep(time, step) {
   const localStep = step % 16;
   const chordIndex = Math.floor(localStep / 4);
   const chords = [
-    [52, 55, 59],
-    [48, 52, 55],
     [50, 57, 60],
-    [47, 50, 54],
+    [48, 55, 58],
+    [53, 57, 60],
+    [46, 53, 57],
   ];
-  const bass = [40, null, 47, null, 43, null, 47, 50, 38, null, 45, null, 43, null, 47, null];
-  const lead = [71, null, 74, 76, 74, null, 71, 69, 67, null, 69, 71, 74, null, 71, 67];
-  const echo = [null, 83, null, 81, null, 79, null, 78, null, 76, null, 74, null, 76, null, 78];
+  const bass = [38, null, 45, null, 41, null, 45, null, 34, null, 41, null, 46, null, 41, null];
+  const lead = [74, null, 77, 79, null, 81, 79, null, 76, null, 74, 72, null, 74, 76, null];
+  const echo = [86, null, null, 84, null, 86, null, 88, 84, null, null, 83, null, 84, null, 86];
+  const shimmer = [81, null, null, null, 79, null, null, null, 84, null, null, null, 79, null, null, null];
 
   if (localStep % 4 === 0) {
-    scheduleBgmPad(chords[chordIndex], time, GAME_BGM_STEP_SEC * 4.2, 0.06);
+    scheduleBgmPad(chords[chordIndex], time, GAME_BGM_STEP_SEC * 4.35, 0.082);
   }
   if (localStep % 2 === 0) {
-    scheduleBgmPulse(28, time, 0.055);
+    scheduleBgmPulse(26, time, 0.068);
   }
-  scheduleBgmPluck(bass[localStep], time, GAME_BGM_STEP_SEC * 0.9, 0.072, 'triangle');
-  scheduleBgmPluck(lead[localStep], time + 0.01, GAME_BGM_STEP_SEC * 0.62, 0.042, 'triangle');
-  scheduleBgmPluck(echo[localStep], time + 0.05, GAME_BGM_STEP_SEC * 0.45, 0.018, 'sine');
+  scheduleBgmPluck(bass[localStep], time, GAME_BGM_STEP_SEC * 1.05, 0.082, 'triangle');
+  scheduleBgmPluck(lead[localStep], time + 0.02, GAME_BGM_STEP_SEC * 0.78, 0.052, 'triangle');
+  scheduleBgmPluck(echo[localStep], time + 0.11, GAME_BGM_STEP_SEC * 0.52, 0.028, 'sine');
+  scheduleBgmShimmer(shimmer[localStep], time + 0.09, GAME_BGM_STEP_SEC * 1.5, 0.018);
 }
 
 function scheduleResultStep(time, step) {
   const localStep = step % 16;
   const chordIndex = Math.floor(localStep / 4);
   const chords = [
-    [55, 59, 62],
-    [52, 55, 60],
+    [55, 62, 67],
     [57, 60, 64],
-    [50, 53, 57],
+    [59, 64, 67],
+    [60, 64, 69],
   ];
-  const bass = [43, null, null, 43, 40, null, null, 40, 45, null, null, 45, 38, null, 40, null];
-  const bell = [74, 76, 79, null, 76, 74, 72, null, 79, 81, 83, null, 79, 76, 74, null];
+  const bass = [43, null, 43, 50, 45, null, 45, 52, 47, null, 47, 54, 48, null, 50, 55];
+  const bell = [79, 81, 83, 86, 84, 83, 81, 84, 86, 88, 91, 88, 86, 84, 83, 79];
+  const counter = [67, null, 69, null, 71, null, 72, null, 74, null, 76, null, 77, null, 79, null];
 
   if (localStep % 4 === 0) {
-    scheduleBgmPad(chords[chordIndex], time, RESULT_BGM_STEP_SEC * 4.6, 0.052);
+    scheduleBgmPad(chords[chordIndex], time, RESULT_BGM_STEP_SEC * 4.8, 0.092);
   }
-  if (localStep === 0 || localStep === 8) {
-    scheduleBgmPulse(31, time, 0.038);
+  if (localStep % 2 === 0) {
+    scheduleBgmPulse(31 + (localStep >= 8 ? 2 : 0), time, 0.054);
   }
-  scheduleBgmPluck(bass[localStep], time, RESULT_BGM_STEP_SEC * 1.1, 0.055, 'sine');
-  scheduleBgmPluck(bell[localStep], time + 0.015, RESULT_BGM_STEP_SEC * 0.7, 0.034, 'triangle');
+  scheduleBgmPluck(bass[localStep], time, RESULT_BGM_STEP_SEC * 1.15, 0.078, 'triangle');
+  scheduleBgmPluck(counter[localStep], time + 0.03, RESULT_BGM_STEP_SEC * 0.72, 0.044, 'sine');
+  scheduleBgmPluck(bell[localStep], time + 0.06, RESULT_BGM_STEP_SEC * 0.88, 0.062, 'triangle');
 }
 
 function scheduleBgmLoop() {
@@ -383,7 +416,7 @@ function startBgm(mode) {
   bgmNextNoteTime = ctx.currentTime + 0.03;
   output.gain.cancelScheduledValues(ctx.currentTime);
   output.gain.setValueAtTime(Math.max(output.gain.value, 0.0001), ctx.currentTime);
-  output.gain.exponentialRampToValueAtTime(mode === 'results' ? 0.095 : 0.12, ctx.currentTime + 0.25);
+  output.gain.exponentialRampToValueAtTime(mode === 'results' ? 0.145 : 0.16, ctx.currentTime + 0.25);
   scheduleBgmLoop();
   bgmTimer = setInterval(scheduleBgmLoop, BGM_LOOKAHEAD_MS);
 }
