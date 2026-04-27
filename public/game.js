@@ -122,10 +122,10 @@ function playButtonTapTone() {
 
   oscA.type = 'triangle';
   oscB.type = 'square';
-  oscA.frequency.setValueAtTime(1480, start);
-  oscA.frequency.exponentialRampToValueAtTime(1060, start + 0.055);
-  oscB.frequency.setValueAtTime(980, start + 0.003);
-  oscB.frequency.exponentialRampToValueAtTime(740, start + 0.055);
+  oscA.frequency.setValueAtTime(1040, start);
+  oscA.frequency.exponentialRampToValueAtTime(760, start + 0.06);
+  oscB.frequency.setValueAtTime(760, start + 0.003);
+  oscB.frequency.exponentialRampToValueAtTime(560, start + 0.06);
 
   gain.gain.setValueAtTime(0.0001, start);
   gain.gain.linearRampToValueAtTime(0.13, start + 0.004);
