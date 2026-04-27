@@ -3,6 +3,7 @@ const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const OpenAI = require('openai');
+const QRCode = require('qrcode');
 const path = require('path');
 const { randomUUID } = require('crypto');
 
@@ -760,6 +761,23 @@ io.on('connection', (socket) => {
     resetToLobby(room);
     io.to(room.code).emit('game_update', publicState(room));
     io.to(room.code).emit('reset_game');
+  });
+
+  socket.on('get_room_qr', async ({ url }) => {
+    const room = getRoom(socket.id);
+    if (!room) return;
+    if (typeof url !== 'string' || url.length > 500) return;
+    try {
+      const dataUrl = await QRCode.toDataURL(url, {
+        width: 300,
+        margin: 2,
+        color: { dark: '#58ffa8', light: '#020504' },
+        errorCorrectionLevel: 'M',
+      });
+      socket.emit('room_qr', { dataUrl, code: room.code });
+    } catch (e) {
+      console.error('[QR]', e.message);
+    }
   });
 
   socket.on('solo_session_start', ({ sessionId }) => {

@@ -63,6 +63,10 @@ let resultsTerminalTimer = null;
 let pendingFinalResults = null;
 let showingFinalResults = false;
 
+// ---- URL招待パラメータ ----
+const _urlRoomCode = new URLSearchParams(location.search).get('room')?.toUpperCase().trim() || null;
+if (_urlRoomCode) history.replaceState(null, '', location.pathname);
+
 // ---- audio ----
 function getAudioContext() {
   const Ctx = window.AudioContext || window.webkitAudioContext;
@@ -983,6 +987,24 @@ socket.on('error_msg', (msg) => {
 
 // ===== LOBBY =====
 
+// URL招待コードがある場合、専用の参加ボタンを先頭に挿入
+if (_urlRoomCode) {
+  const modeSelect = $('mode-select');
+  const inviteBtn = document.createElement('button');
+  inviteBtn.className = 'btn btn-success btn-block';
+  inviteBtn.style.marginBottom = '10px';
+  inviteBtn.textContent = `🔗 ルーム ${_urlRoomCode} に参加`;
+  inviteBtn.addEventListener('click', () => {
+    const name = $('name-input').value.trim();
+    if (!name) { alert('名前を入力してください。'); return; }
+    myName = name;
+    socket.emit('join_room', { name, roomCode: _urlRoomCode, sessionId: mySessionId });
+    $('join-card').classList.add('hidden');
+    $('lobby-info').classList.remove('hidden');
+  });
+  modeSelect.insertBefore(inviteBtn, modeSelect.firstChild);
+}
+
 $('solo-btn').addEventListener('click', startSoloMode);
 $('multi-btn').addEventListener('click', () => {
   const name = $('name-input').value.trim();
@@ -1512,6 +1534,28 @@ $('next-round-btn').addEventListener('click', () => {
 });
 $('play-again-btn').addEventListener('click', () => { socket.emit('play_again'); });
 $('leave-room-btn').addEventListener('click', returnToEntryLobby);
+
+// ===== QR CODE =====
+
+$('show-qr-btn').addEventListener('click', () => {
+  if (!myRoomCode) return;
+  const url = `${location.origin}?room=${myRoomCode}`;
+  socket.emit('get_room_qr', { url });
+});
+
+socket.on('room_qr', ({ dataUrl, code }) => {
+  $('qr-img').src = dataUrl;
+  $('qr-room-code').textContent = code;
+  $('qr-modal').classList.remove('hidden');
+});
+
+$('qr-close-btn').addEventListener('click', () => {
+  $('qr-modal').classList.add('hidden');
+});
+
+$('qr-modal').addEventListener('click', (e) => {
+  if (e.target === $('qr-modal')) $('qr-modal').classList.add('hidden');
+});
 
 // ===== TIMER RING =====
 

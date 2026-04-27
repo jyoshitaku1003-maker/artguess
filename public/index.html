@@ -67,11 +67,12 @@
       </div>
 
       <div id="lobby-info" class="card hidden">
-<h3 class="section-title">参加者 <span id="player-count" style="font-weight:400;color:var(--muted);">0 / 6人</span></h3>
+        <h3 class="section-title">参加者 <span id="player-count" style="font-weight:400;color:var(--muted);">0 / 6人</span></h3>
         <ul id="player-list"></ul>
         <p id="lobby-hint" class="hint">2人以上集まったらホストがスタートできます</p>
         <button id="start-btn" class="btn btn-success btn-block hidden">ゲームスタート！</button>
         <p id="waiting-msg" class="muted hidden">ホストがスタートするのを待っています…</p>
+        <button id="show-qr-btn" class="btn btn-tool btn-block">QRコードを表示</button>
         <button id="lobby-back-btn" class="btn btn-tool btn-block">ロビーに戻る</button>
       </div>
     </div>
@@ -291,6 +292,26 @@
       <button id="solo-next-btn" class="btn btn-primary btn-block hidden">次のお題へ →</button>
       <button id="solo-retry-btn" class="btn btn-success btn-block hidden">もう一度チャレンジ！</button>
       <button id="solo-back-btn" class="btn btn-tool btn-block">ロビーに戻る</button>
+    </div>
+  </div>
+
+  <!-- ===== QR MODAL ===== -->
+  <div id="qr-modal" class="qr-modal hidden" role="dialog" aria-modal="true">
+    <div class="qr-modal-box">
+      <div class="howto-chrome">
+        <span class="howto-dot dot-r"></span>
+        <span class="howto-dot dot-y"></span>
+        <span class="howto-dot dot-g"></span>
+        <span class="howto-chrome-label">join_room.exe</span>
+      </div>
+      <div class="qr-modal-body">
+        <p class="qr-label">スキャンしてルームに参加</p>
+        <div class="qr-img-wrap">
+          <img id="qr-img" src="" alt="QR Code">
+        </div>
+        <p class="qr-code-text">ROOM: <strong id="qr-room-code"></strong></p>
+        <button id="qr-close-btn" class="btn btn-tool btn-block" style="margin-top:16px;">閉じる</button>
+      </div>
     </div>
   </div>
 
