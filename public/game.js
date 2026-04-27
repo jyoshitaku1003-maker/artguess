@@ -507,7 +507,7 @@ window.addEventListener('click', primeAudio, { once: true });
 window.addEventListener('keydown', primeAudio, { once: true });
 
 // button click sound — applied globally except buttons that already have distinct sounds
-const SOUND_SKIP_IDS = new Set(['create-room-btn', 'show-rooms-btn', 'room-code-join-btn', 'start-btn', 'solo-btn', 'multi-btn', 'solo-start-draw-btn', 'submit-drawing-btn', 'submit-guess-btn', 'solo-next-btn', 'solo-retry-btn', 'next-round-btn', 'play-again-btn']);
+const SOUND_SKIP_IDS = new Set(['create-room-btn', 'start-btn']);
 document.addEventListener('click', (e) => {
   const btn = e.target.closest('.btn');
   if (!btn || SOUND_SKIP_IDS.has(btn.id)) return;
