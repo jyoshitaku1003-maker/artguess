@@ -696,12 +696,15 @@ input[type="text"]::placeholder {
   box-shadow:
     0 0 0 1px rgba(255, 255, 255, 0.18),
     0 18px 28px rgba(0, 0, 0, 0.34);
-  pointer-events: none;
 }
 
 #draw-canvas {
   cursor: crosshair;
   touch-action: none;
+}
+
+#guess-canvas {
+  pointer-events: none;
 }
 
 .draw-tools {
