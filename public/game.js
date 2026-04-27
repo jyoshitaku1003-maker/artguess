@@ -124,7 +124,7 @@ async function unlockAudio() {
 function playTone({ freq, duration = 0.12, type = 'sine', volume = 0.04, delay = 0, attack = 0.01, release = 0.08 }) {
   const ctx = getAudioContext();
   const output = getMasterGain();
-  if (!ctx || !output || !audioReady || ctx.state !== 'running') return;
+  if (!ctx || !output || !audioReady) return;
 
   const start = ctx.currentTime + Math.max(delay, 0.02);
   const end = start + duration;
@@ -505,14 +505,13 @@ window.addEventListener('touchend', primeAudio, { once: true });
 window.addEventListener('click', primeAudio, { once: true });
 window.addEventListener('keydown', primeAudio, { once: true });
 
-document.addEventListener('click', async (e) => {
+document.addEventListener('click', (e) => {
   if (!e.target.closest('.btn')) return;
   const ctx = getAudioContext();
   const output = getMasterGain();
   if (!ctx || !output) return;
   audioReady = true;
-  if (ctx.state === 'suspended') await ctx.resume();
-  playButtonClick();
+  ctx.resume().then(() => playButtonClick());
 });
 
 function enableDeveloperUnlimited(password) {
