@@ -145,19 +145,6 @@ function triggerButtonSound() {
   play();
 }
 
-function handleButtonSoundEvent(event) {
-  const button = event.target.closest('button');
-  if (!button || button.disabled || button.id === 'dev-hotspot') return;
-  triggerButtonSound();
-}
-
-document.addEventListener('touchend', handleButtonSoundEvent, { capture: true, passive: true });
-document.addEventListener('mouseup', handleButtonSoundEvent, true);
-document.addEventListener('keydown', (event) => {
-  if (event.key !== 'Enter' && event.key !== ' ') return;
-  handleButtonSoundEvent(event);
-}, true);
-
 // ---- URL招待パラメータ ----
 const _urlRoomCode = new URLSearchParams(location.search).get('room')?.toUpperCase().trim() || null;
 if (_urlRoomCode) history.replaceState(null, '', location.pathname);
@@ -1031,6 +1018,7 @@ if (_urlRoomCode) {
   inviteBtn.style.marginBottom = '10px';
   inviteBtn.textContent = `🔗 ルーム ${_urlRoomCode} に参加`;
   inviteBtn.addEventListener('click', () => {
+    triggerButtonSound();
     const name = $('name-input').value.trim();
     if (!name) { alert('名前を入力してください。'); return; }
     myName = name;
@@ -1043,12 +1031,14 @@ if (_urlRoomCode) {
 
 $('solo-btn').addEventListener('click', startSoloMode);
 $('multi-btn').addEventListener('click', () => {
+  triggerButtonSound();
   const name = $('name-input').value.trim();
   if (!name) { alert('名前を入力してください。'); return; }
   $('mode-select').classList.add('hidden');
   $('multi-options').classList.remove('hidden');
 });
 $('back-to-mode-btn').addEventListener('click', () => {
+  triggerButtonSound();
   $('multi-options').classList.add('hidden');
   $('mode-select').classList.remove('hidden');
 });
@@ -1057,12 +1047,17 @@ $('name-input').addEventListener('keydown', e => { if (e.key === 'Enter') { if (
 $('show-rooms-btn').addEventListener('click', showRoomList);
 $('lobby-back-btn').addEventListener('click', returnToEntryLobby);
 $('back-to-lobby-btn').addEventListener('click', () => {
+  triggerButtonSound();
   $('room-list-card').classList.add('hidden');
   $('join-card').classList.remove('hidden');
 });
-$('refresh-rooms-btn').addEventListener('click', () => socket.emit('get_rooms'));
+$('refresh-rooms-btn').addEventListener('click', () => {
+  triggerButtonSound();
+  socket.emit('get_rooms');
+});
 
 function startSoloMode() {
+  triggerButtonSound();
   const name = $('name-input').value.trim();
   if (!name) { alert('名前を入力してください。'); return; }
   myName = name;
@@ -1080,6 +1075,7 @@ socket.on('solo_session_result', (ok) => {
 });
 
 function exitSoloMode() {
+  triggerButtonSound();
   clearSoloTerminalAnimation();
   soloMode = false;
   soloStreak = 0;
@@ -1152,6 +1148,7 @@ socket.on('solo_result', ({ aiGuess, correct, topic, aiFiltered }) => {
 });
 
 $('solo-start-draw-btn').addEventListener('click', () => {
+  triggerButtonSound();
   drawingSetupDone = false;
   eraserOn = false;
   $('eraser-btn').classList.remove('active');
@@ -1171,10 +1168,12 @@ $('solo-start-draw-btn').addEventListener('click', () => {
 $('solo-topic-back-btn').addEventListener('click', exitSoloMode);
 
 $('solo-next-btn').addEventListener('click', () => {
+  triggerButtonSound();
   soloCurrentImageData = null;
   socket.emit('solo_start');
 });
 $('solo-retry-btn').addEventListener('click', () => {
+  triggerButtonSound();
   soloCurrentImageData = null;
   socket.emit('solo_start');
 });
@@ -1225,6 +1224,7 @@ $('room-code-join-btn').addEventListener('click', () => {
 });
 
 function showRoomList() {
+  triggerButtonSound();
   const name = $('name-input').value.trim();
   if (!name) { alert('名前を入力してください。'); return; }
   $('room-code-input').value = '';
@@ -1234,6 +1234,7 @@ function showRoomList() {
 }
 
 function doCreateRoom() {
+  triggerButtonSound();
   const name = $('name-input').value.trim();
   if (!name) return;
   myName = name;
@@ -1244,6 +1245,7 @@ function doCreateRoom() {
 }
 
 function doJoinRoom(roomCode) {
+  triggerButtonSound();
   const name = $('name-input').value.trim();
   if (!name) { alert('名前を入力してください。'); return; }
   myName = name;
@@ -1255,10 +1257,12 @@ function doJoinRoom(roomCode) {
 
 
 $('start-btn').addEventListener('click', () => {
+  triggerButtonSound();
   socket.emit('start_game');
 });
 
 function returnToEntryLobby() {
+  triggerButtonSound();
   pendingFinalResults = null;
   setResultsView('round');
   $('drawings-gallery').classList.add('hidden');
@@ -1334,6 +1338,7 @@ function buildTopicChoices(choices) {
     btn.className = 'btn topic-choice-btn';
     btn.textContent = topic;
     btn.addEventListener('click', () => {
+      triggerButtonSound();
       container.querySelectorAll('button').forEach(b => { b.disabled = true; });
       btn.classList.add('selected');
       socket.emit('submit_topic', { topic });
@@ -1483,6 +1488,7 @@ function fillWhite(canvas) {
 }
 
 $('eraser-btn').addEventListener('click', () => {
+  triggerButtonSound();
   eraserOn = !eraserOn;
   $('eraser-btn').classList.toggle('active', eraserOn);
   if (eraserOn) {
@@ -1496,12 +1502,14 @@ $('eraser-btn').addEventListener('click', () => {
 $('brush-size').addEventListener('input', e => { brushSize = Number(e.target.value); });
 
 $('clear-btn').addEventListener('click', () => {
+  triggerButtonSound();
   const c = $('draw-canvas');
   if (c) fillWhite(c);
   if (!soloMode) socket.emit('canvas_clear');
 });
 
 $('submit-drawing-btn').addEventListener('click', () => {
+  triggerButtonSound();
   const c = $('draw-canvas');
   if (!c) return;
   const btn = $('submit-drawing-btn');
@@ -1522,6 +1530,7 @@ $('submit-guess-btn').addEventListener('click', submitGuess);
 $('guess-input').addEventListener('keydown', e => { if (e.key === 'Enter') submitGuess(); });
 
 function submitGuess() {
+  triggerButtonSound();
   const answer = $('guess-input').value.trim();
   if (!answer) return;
   socket.emit('submit_guess', { answer });
@@ -1568,18 +1577,23 @@ function renderGuessCanvas(imageData) {
 // ===== RESULTS =====
 
 $('next-round-btn').addEventListener('click', () => {
+  triggerButtonSound();
   if (pendingFinalResults && !showingFinalResults) {
     showFinalResults();
     return;
   }
   socket.emit('next_round');
 });
-$('play-again-btn').addEventListener('click', () => { socket.emit('play_again'); });
+$('play-again-btn').addEventListener('click', () => {
+  triggerButtonSound();
+  socket.emit('play_again');
+});
 $('leave-room-btn').addEventListener('click', returnToEntryLobby);
 
 // ===== QR CODE =====
 
 $('show-qr-btn').addEventListener('click', () => {
+  triggerButtonSound();
   if (!myRoomCode) return;
   const url = `${location.origin}?room=${myRoomCode}`;
   socket.emit('get_room_qr', { url });
@@ -1592,6 +1606,7 @@ socket.on('room_qr', ({ dataUrl, code }) => {
 });
 
 $('qr-close-btn').addEventListener('click', () => {
+  triggerButtonSound();
   $('qr-modal').classList.add('hidden');
 });
 
