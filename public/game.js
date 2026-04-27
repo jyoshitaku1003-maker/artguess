@@ -15,11 +15,7 @@ let mySessionId = localStorage.getItem(SESSION_KEY) || null;
 let myRoomCode  = localStorage.getItem(ROOM_KEY)    || null;
 let devUnlimited = false;
 let devPassword  = null;
-let audioCtx    = null;
-let audioReady  = false;
-let masterGain  = null;
 let lastPhase   = 'lobby';
-let lastSoundAt = { join: 0, start: 0 };
 
 // ---- solo state ----
 let soloMode             = false;
@@ -68,129 +64,6 @@ let showingFinalResults = false;
 const _urlRoomCode = new URLSearchParams(location.search).get('room')?.toUpperCase().trim() || null;
 if (_urlRoomCode) history.replaceState(null, '', location.pathname);
 
-// ---- audio ----
-function getAudioContext() {
-  const Ctx = window.AudioContext || window.webkitAudioContext;
-  if (!Ctx) return null;
-  if (!audioCtx) audioCtx = new Ctx();
-  return audioCtx;
-}
-
-function getMasterGain() {
-  const ctx = getAudioContext();
-  if (!ctx) return null;
-  if (!masterGain) {
-    masterGain = ctx.createGain();
-    masterGain.gain.value = 0.9;
-    masterGain.connect(ctx.destination);
-  }
-  return masterGain;
-}
-
-function warmAudioGraph(ctx, output) {
-  if (!ctx || !output) return;
-
-  const osc = ctx.createOscillator();
-  const gain = ctx.createGain();
-  osc.type = 'sine';
-  osc.frequency.value = 440;
-  gain.gain.value = 0.00001;
-  osc.connect(gain);
-  gain.connect(output);
-  osc.start();
-  osc.stop(ctx.currentTime + 0.01);
-}
-
-function primeAudio() {
-  const ctx = getAudioContext();
-  const output = getMasterGain();
-  if (!ctx || !output) return false;
-  audioReady = true;
-  if (ctx.state === 'suspended') void ctx.resume();
-  warmAudioGraph(ctx, output);
-  return true;
-}
-
-async function unlockAudio() {
-  const ctx = getAudioContext();
-  const output = getMasterGain();
-  if (!ctx || !output) return false;
-  audioReady = true;
-  if (ctx.state === 'suspended') await ctx.resume();
-  warmAudioGraph(ctx, output);
-  return true;
-}
-
-function playTone({ freq, duration = 0.12, type = 'sine', volume = 0.04, delay = 0, attack = 0.01, release = 0.08 }) {
-  const ctx = getAudioContext();
-  const output = getMasterGain();
-  if (!ctx || !output || !audioReady) return;
-
-  const start = ctx.currentTime + Math.max(delay, 0.02);
-  const end = start + duration;
-  const osc = ctx.createOscillator();
-  const gain = ctx.createGain();
-
-  osc.type = type;
-  osc.frequency.setValueAtTime(freq, start);
-  gain.gain.setValueAtTime(0.0001, start);
-  gain.gain.linearRampToValueAtTime(volume, start + attack);
-  gain.gain.exponentialRampToValueAtTime(0.0001, end + release);
-
-  osc.connect(gain);
-  gain.connect(output);
-  osc.start(start);
-  osc.stop(end + release + 0.01);
-}
-
-function playWithCooldown(kind, cooldownMs, fn) {
-  const now = Date.now();
-  if (now - (lastSoundAt[kind] || 0) < cooldownMs) return;
-  lastSoundAt[kind] = now;
-  fn();
-}
-
-function playJoinSound() {
-  playWithCooldown('join', 800, () => {
-    playTone({ freq: 392, duration: 0.1, type: 'triangle', volume: 0.08 });
-    playTone({ freq: 587.33, duration: 0.14, type: 'triangle', volume: 0.1, delay: 0.07 });
-  });
-}
-
-function playStartSound() {
-  playWithCooldown('start', 1200, () => {
-    [261.63, 392, 523.25, 783.99].forEach((freq, index) => {
-      playTone({ freq, duration: 0.12, type: 'sawtooth', volume: 0.09, delay: index * 0.055, attack: 0.005, release: 0.05 });
-    });
-  });
-}
-
-function playCorrectSound() {
-  playTone({ freq: 659.25, duration: 0.09, type: 'triangle', volume: 0.09 });
-  playTone({ freq: 783.99, duration: 0.12, type: 'triangle', volume: 0.1, delay: 0.07 });
-  playTone({ freq: 1046.5, duration: 0.16, type: 'sine', volume: 0.08, delay: 0.13 });
-}
-
-function playVictorySound(victory) {
-  const notes = victory
-    ? [523.25, 659.25, 783.99, 1046.5]
-    : [392, 329.63, 261.63, 196];
-  notes.forEach((freq, index) => {
-    playTone({
-      freq,
-      duration: 0.16,
-      type: victory ? 'triangle' : 'sawtooth',
-      volume: victory ? 0.11 : 0.08,
-      delay: index * 0.09,
-      attack: 0.006,
-      release: 0.08,
-    });
-  });
-}
-
-function playButtonClick() {
-  playTone({ freq: 680, duration: 0.04, type: 'triangle', volume: 0.055, attack: 0.002, release: 0.032 });
-}
 
 function getWinnerLabel({ aiFiltered, roundWinner, humanWin, gameOver, matchWinner }) {
   if (gameOver && matchWinner) {
@@ -500,30 +373,6 @@ function renderSoloResultTerminal({ aiGuess, correct, topic, aiFiltered, streak,
   playSoloTerminalLines(linesEl, lines);
 }
 
-window.addEventListener('pointerdown', primeAudio, { once: true });
-window.addEventListener('touchend', primeAudio, { once: true });
-window.addEventListener('click', primeAudio, { once: true });
-window.addEventListener('keydown', primeAudio, { once: true });
-
-let _lastBtnSoundMs = 0;
-function fireBtnSound() {
-  const now = Date.now();
-  if (now - _lastBtnSoundMs < 300) return;
-  _lastBtnSoundMs = now;
-  const ctx = getAudioContext();
-  const output = getMasterGain();
-  if (!ctx || !output) return;
-  audioReady = true;
-  ctx.resume().then(() => playButtonClick());
-}
-// touchend: iOS では click より確実なユーザージェスチャー
-document.addEventListener('touchend', (e) => {
-  if (e.target.closest('.btn')) fireBtnSound();
-}, { passive: true });
-// click: デスクトップ用（touchend+clickの重複は300msで除外）
-document.addEventListener('click', (e) => {
-  if (e.target.closest('.btn')) fireBtnSound();
-});
 
 function enableDeveloperUnlimited(password) {
   devPassword = password;
@@ -854,7 +703,6 @@ socket.on('joined', ({ sessionId, roomCode }) => {
   localStorage.setItem(SESSION_KEY, sessionId);
   localStorage.setItem(ROOM_KEY, roomCode);
   if (devUnlimited && devPassword) socket.emit('enable_dev_mode', { password: devPassword, sessionId });
-  playJoinSound();
 });
 
 socket.on('game_update', (state) => {
@@ -865,9 +713,6 @@ socket.on('game_update', (state) => {
   const me = players.find(p => p.id === myId);
   amDrawer = me?.isDrawer ?? false;
 
-  if (prevPhase === 'lobby' && state.phase === 'topic_input') {
-    playStartSound();
-  }
 
   if (state.phase === 'lobby' && myName) refreshLobby(state);
   if (state.phase === 'guessing')        updateGuessCount(state);
@@ -943,8 +788,6 @@ socket.on('game_results', (res) => {
   pendingFinalResults = gameOver ? res : null;
   setResultsView('round');
 
-  if (myGuess?.correct) playCorrectSound();
-  if (gameOver && matchWinner) playVictorySound(matchWinner === 'human');
 
   // Sudden death banner (show when in SD and match not yet over)
   $('sudden-death-banner').classList.toggle('hidden', !isSuddenDeath || gameOver);
@@ -1121,10 +964,9 @@ $('back-to-lobby-btn').addEventListener('click', () => {
 });
 $('refresh-rooms-btn').addEventListener('click', () => socket.emit('get_rooms'));
 
-async function startSoloMode() {
+function startSoloMode() {
   const name = $('name-input').value.trim();
   if (!name) { alert('名前を入力してください。'); return; }
-  await unlockAudio();
   myName = name;
   socket.emit('solo_session_start', { sessionId: mySessionId });
 }
@@ -1169,11 +1011,9 @@ socket.on('solo_result', ({ aiGuess, correct, topic, aiFiltered }) => {
   const prevStreak = soloStreak;
   if (correct) {
     soloStreak++;
-    playCorrectSound();
   } else if (!aiFiltered) {
     updateSoloBest(prevStreak);
     soloStreak = 0;
-    playVictorySound(false);
   }
 
   renderSoloResultTerminal({ aiGuess, correct, topic, aiFiltered, streak: soloStreak, prevStreak });
@@ -1295,11 +1135,9 @@ function showRoomList() {
   socket.emit('get_rooms');
 }
 
-async function doCreateRoom() {
+function doCreateRoom() {
   const name = $('name-input').value.trim();
   if (!name) return;
-  await unlockAudio();
-  playJoinSound();
   myName = name;
   resetLobbyInfoState();
   socket.emit('create_room', { name, sessionId: mySessionId });
@@ -1307,11 +1145,9 @@ async function doCreateRoom() {
   $('lobby-info').classList.remove('hidden');
 }
 
-async function doJoinRoom(roomCode) {
+function doJoinRoom(roomCode) {
   const name = $('name-input').value.trim();
   if (!name) { alert('名前を入力してください。'); return; }
-  await unlockAudio();
-  playJoinSound();
   myName = name;
   resetLobbyInfoState();
   socket.emit('join_room', { name, roomCode, sessionId: mySessionId });
@@ -1320,9 +1156,7 @@ async function doJoinRoom(roomCode) {
 }
 
 
-$('start-btn').addEventListener('click', async () => {
-  await unlockAudio();
-  playStartSound();
+$('start-btn').addEventListener('click', () => {
   socket.emit('start_game');
 });
 
