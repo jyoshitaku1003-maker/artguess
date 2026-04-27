@@ -1401,6 +1401,20 @@ input[type="range"] {
   margin-bottom: 0;
 }
 
+#lobby-info {
+  max-height: calc(100dvh - 80px);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+#lobby-info::-webkit-scrollbar {
+  display: none;
+}
+
+#lobby-genre-choices.topic-choices {
+  max-height: 30dvh;
+}
+
 @media (max-width: 720px) {
   .screen {
     padding: 16px 12px 30px;
