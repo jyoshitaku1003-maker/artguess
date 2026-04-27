@@ -292,7 +292,7 @@ async function requestAIGuess(room, imageData) {
         content: [
           { type: 'image_url', image_url: { url: `data:image/png;base64,${base64}`, detail: 'high' } },
           { type: 'text', text: 'Return strict JSON only in the form {"answer":"短い日本語の名詞","reason":"視覚的な根拠を一文で"}.' },
-          { type: 'text', text: 'Guess the intended Japanese noun from the drawing. Keep the answer short. Keep the reason to one short Japanese sentence that explains which visual clues you used. If uncertain, still provide your best guess.' },
+          { type: 'text', text: `The answer belongs to the genre "${game.selectedGenre || 'ジャンルなし'}". Guess the intended Japanese noun from the drawing. Keep the answer short. Keep the reason to one short Japanese sentence that explains which visual clues you used. If uncertain, still provide your best guess.` },
         ],
       }],
     });
@@ -448,7 +448,7 @@ function resumePlayer(socket, room, player) {
   if (room.game.phase === 'topic_input' && player.isDrawer) socket.emit('choose_topic', { choices: room.game.topicChoices });
   if (room.game.phase === 'drawing'     && player.isDrawer) socket.emit('your_topic', room.game.topic);
   if (room.game.phase === 'guessing'    && room.game.drawingData) {
-    socket.emit('guessing_start', { imageData: room.game.drawingData });
+    socket.emit('guessing_start', { imageData: room.game.drawingData, genre: room.game.selectedGenre });
     socket.emit('timer_tick', room.game.timeLeft);
   }
 }
@@ -696,20 +696,25 @@ io.on('connection', (socket) => {
     const me = game.players.find((p) => p.id === socket.id);
     if (!me?.isHost) return;
     if (game.players.length < 2) { socket.emit('error_msg', 'プレイヤーは2人以上必要です。'); return; }
+    if (!game.selectedGenre) { socket.emit('error_msg', 'ゲーム開始前にジャンルを選んでください。'); return; }
 
     game.drawerIndex = Math.floor(Math.random() * game.players.length);
     game.players.forEach((p, i) => { p.isDrawer = i === game.drawerIndex; });
-    game.topic = ''; game.selectedGenre = ''; game.topicChoices = []; game.phase = 'topic_input';
+    game.topic = ''; game.topicChoices = []; game.phase = 'topic_input';
     game.guesses = {}; game.drawingData = null; game.aiGuess = null;
 
+    const choices = await generateTopicChoices(game.usedTopics, game.selectedGenre);
+    game.topicChoices = choices;
+    game.usedTopics.push(...choices.filter((topic, index, arr) => !game.usedTopics.includes(topic) && arr.indexOf(topic) === index));
     io.to(room.code).emit('game_update', publicState(room));
+    io.to(game.players[game.drawerIndex].id).emit('choose_topic', { choices, genre: game.selectedGenre });
   });
 
-  socket.on('submit_genre', async ({ genre }) => {
+  socket.on('submit_genre', ({ genre }) => {
     const room = getRoom(socket.id);
     if (!room) return;
     const { game } = room;
-    if (game.phase !== 'topic_input') return;
+    if (game.phase !== 'lobby') return;
     const me = game.players.find((p) => p.id === socket.id);
     if (!me?.isHost) return;
 
@@ -717,12 +722,7 @@ io.on('connection', (socket) => {
     if (!TOPIC_GENRES.includes(trimmed)) return;
 
     game.selectedGenre = trimmed;
-    const choices = await generateTopicChoices(game.usedTopics, trimmed);
-    game.topicChoices = choices;
-    game.usedTopics.push(...choices.filter((topic, index, arr) => !game.usedTopics.includes(topic) && arr.indexOf(topic) === index));
-
     io.to(room.code).emit('game_update', publicState(room));
-    io.to(game.players[game.drawerIndex].id).emit('choose_topic', { choices, genre: trimmed });
   });
 
   socket.on('submit_topic', ({ topic }) => {
@@ -755,10 +755,14 @@ io.on('connection', (socket) => {
 
     game.drawerIndex = Math.floor(Math.random() * game.players.length);
     game.players.forEach((p, i) => { p.isDrawer = i === game.drawerIndex; });
-    game.topic = ''; game.selectedGenre = ''; game.topicChoices = []; game.phase = 'topic_input';
+    game.topic = ''; game.topicChoices = []; game.phase = 'topic_input';
     game.guesses = {}; game.drawingData = null; game.aiGuess = null; game.timeLeft = ROUND_SECONDS;
 
+    const choices = await generateTopicChoices(game.usedTopics, game.selectedGenre);
+    game.topicChoices = choices;
+    game.usedTopics.push(...choices.filter((topic, index, arr) => !game.usedTopics.includes(topic) && arr.indexOf(topic) === index));
     io.to(room.code).emit('game_update', publicState(room));
+    io.to(game.players[game.drawerIndex].id).emit('choose_topic', { choices, genre: game.selectedGenre });
   });
 
   socket.on('draw_stroke', (strokeData) => {
@@ -789,7 +793,7 @@ io.on('connection', (socket) => {
     room.game.phase = 'guessing';
     room.game.guesses = {};
 
-    io.to(room.code).emit('guessing_start', { imageData });
+    io.to(room.code).emit('guessing_start', { imageData, genre: room.game.selectedGenre });
     io.to(room.code).emit('game_update', publicState(room));
     startTimer(room);
     requestAIGuess(room, imageData);

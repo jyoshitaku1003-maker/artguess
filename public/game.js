@@ -1147,9 +1147,11 @@ socket.on('canvas_clear', () => {
   if (c) fillWhite(c);
 });
 
-socket.on('guessing_start', ({ imageData }) => {
+socket.on('guessing_start', ({ imageData, genre }) => {
   showScreen('guessing');
   renderGuessCanvas(imageData);
+  const genreLabel = $('guess-genre-label');
+  if (genreLabel) genreLabel.textContent = genre ? `ジャンル: ${genre}` : '';
 
   if (amDrawer) {
     $('guess-form').classList.add('hidden');
@@ -1607,8 +1609,31 @@ function refreshLobby(state) {
   });
 
   const me = state.players.find(p => p.id === myId);
+  const genrePanel = $('lobby-genre-panel');
+  const genreSelected = $('lobby-genre-selected');
+  const genreChoices = $('lobby-genre-choices');
+  if (genrePanel) genrePanel.classList.remove('hidden');
+  if (genreSelected) {
+    genreSelected.textContent = state.selectedGenre
+      ? `今回のジャンル: ${state.selectedGenre}`
+      : 'ホストがゲーム開始前にジャンルを選びます';
+  }
+  if (genreChoices) genreChoices.innerHTML = '';
+  if (me?.isHost && genreChoices) {
+    MULTI_TOPIC_GENRES.forEach((genre) => {
+      const btn = document.createElement('button');
+      btn.className = 'btn topic-choice-btn';
+      btn.textContent = genre;
+      if (genre === state.selectedGenre) btn.classList.add('selected');
+      btn.addEventListener('click', () => {
+        triggerButtonSound();
+        socket.emit('submit_genre', { genre });
+      });
+      genreChoices.appendChild(btn);
+    });
+  }
   if (me?.isHost) {
-    $('start-btn').classList.toggle('hidden', state.players.length < 2);
+    $('start-btn').classList.toggle('hidden', state.players.length < 2 || !state.selectedGenre);
     $('waiting-msg').classList.add('hidden');
   } else {
     $('start-btn').classList.add('hidden');
@@ -1685,10 +1710,7 @@ function buildTopicChoices(choices, genre = '') {
 
 function setupTopicInputScreen(state) {
   const me = state.players.find(p => p.id === myId);
-  const isHost = me?.isHost ?? false;
   const isDrawer = me?.isDrawer ?? false;
-  const genreSelected = !!state.selectedGenre;
-  const choicesReady = !!state.topicChoicesReady;
   const spectatorText = $('topic-spectator-text');
   const genreCard = $('topic-genre-host');
   const hostWait = $('topic-host-wait');
@@ -1700,22 +1722,12 @@ function setupTopicInputScreen(state) {
   if (drawerCard) drawerCard.classList.add('hidden');
   if (spectatorCard) spectatorCard.classList.add('hidden');
 
-  if (isHost && !genreSelected) {
-    buildGenreChoices();
-    if (genreCard) genreCard.classList.remove('hidden');
-    if (spectatorText) spectatorText.textContent = 'ホストがジャンルを選んでいます';
-    return;
-  }
-
-  if (isHost && genreSelected && !isDrawer) {
-    if (hostWait) hostWait.classList.remove('hidden');
-    return;
-  }
+  if (isDrawer) return;
 
   if (spectatorText) {
-    spectatorText.textContent = genreSelected
-      ? '描く人がお題を選んでいます'
-      : 'ホストがジャンルを選んでいます';
+    spectatorText.textContent = state.selectedGenre
+      ? `描く人が「${state.selectedGenre}」のお題を選んでいます`
+      : '描く人がお題を選んでいます';
   }
   if (spectatorCard) spectatorCard.classList.remove('hidden');
 }
@@ -1911,6 +1923,8 @@ function restoreGuessingState(state) {
 
   showScreen('guessing');
   renderGuessCanvas(state.drawingData);
+  const genreLabel = $('guess-genre-label');
+  if (genreLabel) genreLabel.textContent = state.selectedGenre ? `ジャンル: ${state.selectedGenre}` : '';
 
   if (me.isDrawer) {
     $('guess-form').classList.add('hidden');
