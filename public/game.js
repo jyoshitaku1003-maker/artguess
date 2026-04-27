@@ -189,6 +189,18 @@ function playVictorySound(victory) {
   });
 }
 
+function playKeyClick() {
+  playWithCooldown('key', 18, () => {
+    playTone({ freq: 160, duration: 0.018, type: 'square', volume: 0.022, attack: 0.001, release: 0.012 });
+    playTone({ freq: 2800, duration: 0.01, type: 'square', volume: 0.014, attack: 0.001, release: 0.006, delay: 0.002 });
+  });
+}
+
+function playButtonClick() {
+  playTone({ freq: 900, duration: 0.035, type: 'sine', volume: 0.055, attack: 0.002, release: 0.028 });
+  playTone({ freq: 450, duration: 0.025, type: 'square', volume: 0.022, attack: 0.001, release: 0.018 });
+}
+
 function getWinnerLabel({ aiFiltered, roundWinner, humanWin, gameOver, matchWinner }) {
   if (gameOver && matchWinner) {
     return matchWinner === 'human' ? '人間チーム' : 'AI';
@@ -266,6 +278,7 @@ function playTerminalLines(linesEl, queuedLines, onComplete = () => {}) {
       const ch = text[charIndex++];
       line.textContent += ch;
       linesEl.scrollTop = linesEl.scrollHeight;
+      playKeyClick();
       resultsTerminalTimer = setTimeout(typeNextChar, getResultsTerminalCharDelay(ch));
     }
 
@@ -455,6 +468,7 @@ function playSoloTerminalLines(linesEl, queuedLines) {
       }
       line.textContent += text[charIndex++];
       linesEl.scrollTop = linesEl.scrollHeight;
+      playKeyClick();
       soloTerminalTimer = setTimeout(typeNextChar, getResultsTerminalCharDelay(text[charIndex - 1]));
     }
     typeNextChar();
@@ -501,6 +515,14 @@ window.addEventListener('pointerdown', primeAudio, { once: true });
 window.addEventListener('touchend', primeAudio, { once: true });
 window.addEventListener('click', primeAudio, { once: true });
 window.addEventListener('keydown', primeAudio, { once: true });
+
+// button click sound — applied globally except buttons that already have distinct sounds
+const SOUND_SKIP_IDS = new Set(['create-room-btn', 'show-rooms-btn', 'room-code-join-btn', 'start-btn', 'solo-btn', 'multi-btn', 'solo-start-draw-btn', 'submit-drawing-btn', 'submit-guess-btn', 'solo-next-btn', 'solo-retry-btn', 'next-round-btn', 'play-again-btn']);
+document.addEventListener('click', (e) => {
+  const btn = e.target.closest('.btn');
+  if (!btn || SOUND_SKIP_IDS.has(btn.id)) return;
+  playButtonClick();
+});
 
 function enableDeveloperUnlimited(password) {
   devPassword = password;
@@ -761,6 +783,7 @@ function initHowtoTerminal() {
     if (charIdx < src.length) {
       segEl.textContent += src[charIdx++];
       linesEl.scrollTop = linesEl.scrollHeight;
+      playKeyClick();
       timer = setTimeout(tick, charDelay(src[charIdx - 1], !!seg.kana));
     } else if (seg.kana) {
       // 変換：ハイライト → 漢字に置換
