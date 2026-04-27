@@ -1764,11 +1764,6 @@ function setupDrawingScreen(state) {
     $('draw-tools').classList.add('hidden');
     $('topic-banner').classList.add('hidden');
     $('spectator-banner').classList.remove('hidden');
-    // Strip stale drawing listeners left from a previous round where this client was
-    // the drawer. cloneNode(true) copies the element without copying event listeners.
-    const oldCanvas = $('draw-canvas');
-    const freshCanvas = oldCanvas.cloneNode(true);
-    oldCanvas.parentNode.replaceChild(freshCanvas, oldCanvas);
     fillWhite($('draw-canvas'));
   }
 }
@@ -1814,6 +1809,7 @@ function getXY(canvas, e) {
 }
 
 function startDraw(canvas, e) {
+  if (!soloMode && !amDrawer) return;
   isDrawing = true;
   currentStroke = [getXY(canvas, e)];
 }

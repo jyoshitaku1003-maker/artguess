@@ -523,6 +523,13 @@ input[type="text"]::placeholder {
 
 #player-list {
   margin-bottom: 16px;
+  max-height: 22dvh;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+#player-list::-webkit-scrollbar {
+  display: none;
 }
 
 #player-list li,
