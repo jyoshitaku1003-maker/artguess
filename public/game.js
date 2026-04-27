@@ -124,8 +124,7 @@ async function unlockAudio() {
 function playTone({ freq, duration = 0.12, type = 'sine', volume = 0.04, delay = 0, attack = 0.01, release = 0.08 }) {
   const ctx = getAudioContext();
   const output = getMasterGain();
-  if (!ctx || !output || !audioReady) return;
-  if (ctx.state === 'suspended') void ctx.resume();
+  if (!ctx || !output || !audioReady || ctx.state !== 'running') return;
 
   const start = ctx.currentTime + Math.max(delay, 0.02);
   const end = start + duration;
@@ -506,9 +505,13 @@ window.addEventListener('touchend', primeAudio, { once: true });
 window.addEventListener('click', primeAudio, { once: true });
 window.addEventListener('keydown', primeAudio, { once: true });
 
-document.addEventListener('click', (e) => {
+document.addEventListener('click', async (e) => {
   if (!e.target.closest('.btn')) return;
-  primeAudio();
+  const ctx = getAudioContext();
+  const output = getMasterGain();
+  if (!ctx || !output) return;
+  audioReady = true;
+  if (ctx.state === 'suspended') await ctx.resume();
   playButtonClick();
 });
 
@@ -1108,11 +1111,10 @@ $('back-to-lobby-btn').addEventListener('click', () => {
 });
 $('refresh-rooms-btn').addEventListener('click', () => socket.emit('get_rooms'));
 
-function startSoloMode() {
+async function startSoloMode() {
   const name = $('name-input').value.trim();
   if (!name) { alert('名前を入力してください。'); return; }
-  primeAudio();
-  void unlockAudio();
+  await unlockAudio();
   myName = name;
   socket.emit('solo_session_start', { sessionId: mySessionId });
 }
@@ -1283,12 +1285,11 @@ function showRoomList() {
   socket.emit('get_rooms');
 }
 
-function doCreateRoom() {
+async function doCreateRoom() {
   const name = $('name-input').value.trim();
   if (!name) return;
-  primeAudio();
+  await unlockAudio();
   playJoinSound();
-  void unlockAudio();
   myName = name;
   resetLobbyInfoState();
   socket.emit('create_room', { name, sessionId: mySessionId });
@@ -1296,12 +1297,11 @@ function doCreateRoom() {
   $('lobby-info').classList.remove('hidden');
 }
 
-function doJoinRoom(roomCode) {
+async function doJoinRoom(roomCode) {
   const name = $('name-input').value.trim();
   if (!name) { alert('名前を入力してください。'); return; }
-  primeAudio();
+  await unlockAudio();
   playJoinSound();
-  void unlockAudio();
   myName = name;
   resetLobbyInfoState();
   socket.emit('join_room', { name, roomCode, sessionId: mySessionId });
@@ -1310,10 +1310,9 @@ function doJoinRoom(roomCode) {
 }
 
 
-$('start-btn').addEventListener('click', () => {
-  primeAudio();
+$('start-btn').addEventListener('click', async () => {
+  await unlockAudio();
   playStartSound();
-  void unlockAudio();
   socket.emit('start_game');
 });
 
