@@ -10,7 +10,7 @@ const { randomUUID } = require('crypto');
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
-  maxHttpBufferSize: 5e6, // 5MB荳企剞・医ョ繝輔か繝ｫ繝・MB・・
+  maxHttpBufferSize: 5e6, // 5MB上限（デフォルト1MB）
 });
 
 const openai = process.env.OPENAI_API_KEY
@@ -36,9 +36,9 @@ const RECONNECT_GRACE_MS = 15000;
 const MAX_PLAYERS = 6;
 const ROOM_CREATE_LIMIT_TIMEZONE = 'Asia/Tokyo';
 const DEV_OVERRIDE_PASSWORD = process.env.DEV_PASSWORD ?? null;
-const MAX_IMAGE_B64_LEN = 7 * 1024 * 1024; // ~5MB 繝舌う繝翫Μ逶ｸ蠖・
+const MAX_IMAGE_B64_LEN = 7 * 1024 * 1024; // ~5MB バイナリ相当
 const MAX_STROKE_POINTS = 1000;
-const AI_COOLDOWN_MS = 12000; // 繧ｽ繧ｱ繝・ヨ縺斐→縺ｮAI蜻ｼ縺ｳ蜃ｺ縺玲怙蟆城俣髫費ｼ・s・・
+const AI_COOLDOWN_MS = 12000; // ソケットごとのAI呼び出し最小間隔（ms）
 
 // ---- room management ----
 
@@ -49,8 +49,8 @@ const createdRoomDates   = new Map(); // sessionId -> YYYY-MM-DD
 const createdRoomDatesByIP = new Map(); // IP -> YYYY-MM-DD
 const soloPlayedDates    = new Map(); // sessionId -> YYYY-MM-DD
 const soloPlayedDatesByIP  = new Map(); // IP -> YYYY-MM-DD
-const soloCurrentTopics = new Map(); // socketId -> 迴ｾ蝨ｨ縺ｮ縺企｡・
-const aiLastCallTime    = new Map(); // socketId -> 譛邨・I蜻ｼ縺ｳ蜃ｺ縺玲凾蛻ｻ
+const soloCurrentTopics = new Map(); // socketId -> 現在のお題
+const aiLastCallTime    = new Map(); // socketId -> 最終AI呼び出し時刻
 const unlimitedCreatorSessions = new Set();
 
 function generateRoomCode() {
@@ -297,10 +297,10 @@ async function requestAIGuess(room, imageData) {
       }],
     });
     const raw = response.choices[0].message.content.trim();
-    const REFUSAL = /逕ｳ縺苓ｨｳ|縺ｧ縺阪∪縺帙ｓ|縺吶∩縺ｾ縺帙ｓ|荳埼←蛻・I'm sorry|I cannot|inappropriate/i;
+    const REFUSAL = /申し訳|できません|すみません|不適切|I'm sorry|I cannot|inappropriate/i;
     if (REFUSAL.test(raw)) {
       game.aiGuess = '__filtered__';
-      game.aiReason = '繧ｻ繝ｼ繝輔ユ繧｣繝輔ぅ繝ｫ繧ｿ繝ｼ縺ｫ繧医ｊ蝗樒ｭ皮炊逕ｱ繧堤函謌舌〒縺阪∪縺帙ｓ縺ｧ縺励◆';
+      game.aiReason = 'セーフティフィルターにより回答理由を生成できませんでした';
       console.log(`[AI] Filtered response: "${raw.slice(0, 40)}"`);
     } else {
       const parsed = parseAiVisionResult(raw);
@@ -362,10 +362,10 @@ async function emitResults(room) {
   const aiCorrect = !aiFiltered && (judgments['__ai__'] ?? isCorrect(game.aiGuess, game.topic));
   const humanWin = Object.values(game.guesses).some((g) => g.correct);
 
-  // AI縺後ヵ繧｣繝ｫ繧ｿ繝ｼ縺輔ｌ縺溷ｴ蜷医・蠑輔″蛻・￠・井ｸ｡閠・轤ｹ・・
+  // AIがフィルターされた場合は引き分け（両者0点）
   let roundWinner = 'none';
   if (!aiFiltered) {
-    if (humanWin && aiCorrect) roundWinner = 'ai';   // 荳｡閠・ｭ｣隗｣縺ｯAI縺ｮ繝昴う繝ｳ繝・
+    if (humanWin && aiCorrect) roundWinner = 'ai';   // 両者正解はAIのポイント
     else if (humanWin)         roundWinner = 'human';
     else if (aiCorrect)        roundWinner = 'ai';
   }
@@ -386,7 +386,7 @@ async function emitResults(room) {
     else if (ar)  { gameOver = true; matchWinner = 'ai'; }
   }
 
-  // 繝ｩ繧ｦ繝ｳ繝牙ｱ･豁ｴ縺ｫ霑ｽ蜉
+  // ラウンド履歴に追加
   game.roundHistory.push({
     drawing: game.drawingData,
     topic: game.topic,
@@ -615,7 +615,7 @@ io.on('connection', (socket) => {
   });
 
   socket.on('create_room', ({ name, sessionId }) => {
-    // 蜀肴磁邯壹メ繧ｧ繝・け
+    // 再接続チェック
     const existingRoomCode = sessionId ? sessionRoom.get(sessionId) : null;
     const existingRoom = existingRoomCode ? rooms.get(existingRoomCode) : null;
     if (existingRoom) {
@@ -658,7 +658,7 @@ io.on('connection', (socket) => {
       return;
     }
 
-    // 蜀肴磁邯壹メ繧ｧ繝・け
+    // 再接続チェック
     if (sessionId) {
       const player = room.game.players.find((p) => p.sessionId === sessionId);
       if (player) { resumePlayer(socket, room, player); return; }
