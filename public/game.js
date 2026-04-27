@@ -1791,6 +1791,7 @@ function getXY(canvas, e) {
 }
 
 function startDraw(canvas, e) {
+  if (!soloMode && !amDrawer) return;
   isDrawing = true;
   currentStroke = [getXY(canvas, e)];
 }
