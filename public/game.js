@@ -842,7 +842,7 @@ function initHowtoTerminal() {
 
   // segs: array of { t } (plain) or { kana, kanji } (IME conversion)
   const LINES = [
-    { segs: [{ t: '$ artdecode.exe --boot' }], pause: 700 },
+    { segs: [{ t: '$ artguess.exe --boot' }], pause: 700 },
     { segs: [{ t: '' }], pause: 120 },
     { segs: [{ t: '  SYSTEM LINK............ ESTABLISHED' }], pause: 80 },
     { segs: [{ t: '  AI CORE................ ONLINE' }], pause: 260 },
