@@ -332,7 +332,7 @@ async function judgeAnswers(topic, answers) {
       response_format: { type: 'json_object' },
       messages: [{
         role: 'user',
-        content: `Topic: ${topic}\nAnswers:\n${numbered}\n\nMark an answer as correct ONLY if it refers to exactly the same thing as the topic, just written differently (e.g. kanji vs kana, Japanese vs English for the identical entity, full name vs well-known abbreviation of the same thing). Do NOT accept synonyms, related concepts, broader/narrower categories, or things that are merely similar. Return JSON only in the form {"1":true,"2":false}.`,
+        content: `Topic: ${topic}\nAnswers:\n${numbered}\n\nMark an answer as correct ONLY if it refers to exactly the same thing as the topic. Accept: different scripts (kanji vs kana), Japanese vs English name for the same entity, common abbreviations, and brand names or regional names that are widely used as a general term for the same product (e.g. バンドエイド・カットバン・サビオ・絆創膏 all refer to the same thing). Do NOT accept synonyms, related concepts, broader/narrower categories, or things that are merely similar. Return JSON only in the form {"1":true,"2":false}.`,
       }],
     });
     const raw = JSON.parse(resp.choices[0].message.content);
