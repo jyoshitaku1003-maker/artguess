@@ -177,9 +177,7 @@ function isSingleWordTopic(text) {
 function isCorrect(guess, topic) {
   const g = normalizeAnswer(guess);
   const t = normalizeAnswer(topic);
-  if (g === t) return true;
-  if (g.length >= 2 && t.length >= 2 && (g.includes(t) || t.includes(g))) return true;
-  return false;
+  return g === t;
 }
 
 function guesserCount(game) { return game.players.filter((p) => !p.isDrawer).length; }
@@ -334,7 +332,7 @@ async function judgeAnswers(topic, answers) {
       response_format: { type: 'json_object' },
       messages: [{
         role: 'user',
-        content: `Topic: ${topic}\nAnswers:\n${numbered}\n\nFor each answer, decide whether it should count as correct for the topic. Be tolerant of close wording, synonyms, and small phrasing differences, but do not mark clearly different concepts as correct. Return JSON only in the form {"1":true,"2":false}.`,
+        content: `Topic: ${topic}\nAnswers:\n${numbered}\n\nMark an answer as correct ONLY if it refers to exactly the same thing as the topic, just written differently (e.g. kanji vs kana, Japanese vs English for the identical entity, full name vs well-known abbreviation of the same thing). Do NOT accept synonyms, related concepts, broader/narrower categories, or things that are merely similar. Return JSON only in the form {"1":true,"2":false}.`,
       }],
     });
     const raw = JSON.parse(resp.choices[0].message.content);
