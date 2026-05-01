@@ -14,6 +14,9 @@ const io = new Server(server, {
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY ?? null;
 const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+const GEMINI_VISION_MODEL = process.env.GEMINI_VISION_MODEL || GEMINI_MODEL;
+const GEMINI_TOPIC_MODEL = process.env.GEMINI_TOPIC_MODEL || GEMINI_MODEL;
+const GEMINI_JUDGE_MODEL = process.env.GEMINI_JUDGE_MODEL || GEMINI_MODEL;
 
 app.use((_, res, next) => {
   res.setHeader('Content-Security-Policy',
@@ -29,15 +32,17 @@ if (GEMINI_API_KEY) {
 }
 
 async function callGemini(parts, {
+  model = GEMINI_MODEL,
   responseMimeType = 'text/plain',
   temperature = 0.4,
+  maxOutputTokens = undefined,
 } = {}) {
   if (!GEMINI_API_KEY) {
     throw new Error('GEMINI_API_KEY is not set');
   }
 
   const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(GEMINI_MODEL)}:generateContent`,
+    `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
     {
       method: 'POST',
       headers: {
@@ -49,6 +54,7 @@ async function callGemini(parts, {
         generationConfig: {
           temperature,
           response_mime_type: responseMimeType,
+          ...(maxOutputTokens ? { maxOutputTokens } : {}),
         },
       }),
     },
@@ -329,11 +335,16 @@ async function requestAIGuess(room, imageData) {
     const base64 = imageData.replace(/^data:image\/[^;]+;base64,/, '');
     const raw = await callGemini([
       { inline_data: { mime_type: 'image/png', data: base64 } },
+      { text: 'You are playing a Japanese drawing-guessing game. Infer the most likely intended answer from the sketch.' },
+      { text: `Genre: ${game.selectedGenre || 'ジャンルなし'}` },
+      { text: 'Focus on the intended subject, not the drawing quality. Use visible shape, structure, count, relative position, silhouette, and iconic parts as clues. Prefer a common, drawable Japanese noun. Avoid abstract interpretations unless the drawing strongly supports them.' },
+      { text: 'If multiple candidates are possible, choose the one that best matches the overall drawing rather than a tiny detail.' },
       { text: 'Return strict JSON only in the form {"answer":"短い日本語の名詞","reason":"視覚的な根拠を一文で"}.' },
-      { text: `The answer belongs to the genre "${game.selectedGenre || 'ジャンルなし'}". Guess the intended Japanese noun from the drawing. Keep the answer short. Keep the reason to one short Japanese sentence that explains which visual clues you used. If uncertain, still provide your best guess.` },
     ], {
+      model: GEMINI_VISION_MODEL,
       responseMimeType: 'application/json',
-      temperature: 0.3,
+      temperature: 0.15,
+      maxOutputTokens: 120,
     });
     const REFUSAL = /申し訳|できません|すみません|不適切|I'm sorry|I cannot|inappropriate/i;
     if (REFUSAL.test(raw)) {
@@ -367,10 +378,12 @@ async function judgeAnswers(topic, answers) {
   const numbered = keys.map((k, i) => `${i + 1}. ${answers[k]}`).join('\n');
   try {
     const rawText = await callGemini([
-      { text: `Topic: ${topic}\nAnswers:\n${numbered}\n\nMark an answer as correct ONLY if it refers to exactly the same thing as the topic. Accept: different scripts (kanji vs kana), Japanese vs English name for the same entity, common abbreviations, and brand names or regional names that are widely used as a general term for the same product (e.g. バンドエイド・カットバン・サビオ・絆創膏 all refer to the same thing). Do NOT accept synonyms, related concepts, broader/narrower categories, or things that are merely similar. Return JSON only in the form {"1":true,"2":false}.` },
+      { text: `Topic: ${topic}\nAnswers:\n${numbered}\n\nMark an answer as correct ONLY if it refers to exactly the same thing as the topic. Accept: different scripts (kanji vs kana), Japanese vs English name for the same entity, common abbreviations, and brand names or regional names that are widely used as a general term for the same product (e.g. バンドエイド・カットバン・サビオ・絆創膏 all refer to the same thing). Do NOT accept synonyms, related concepts, broader/narrower categories, or merely similar things. Be strict. Return JSON only in the form {"1":true,"2":false}.` },
     ], {
+      model: GEMINI_JUDGE_MODEL,
       responseMimeType: 'application/json',
-      temperature: 0.1,
+      temperature: 0,
+      maxOutputTokens: 80,
     });
     const raw = JSON.parse(rawText);
     console.log('[Judge]', JSON.stringify(raw));
@@ -561,10 +574,16 @@ async function generateTopicChoices(usedTopics = [], genre = 'ジャンルなし
     : '';
   try {
     const rawText = await callGemini([
-      { text: `Generate exactly 3 Japanese drawing-game topics for the genre "${genre}". Each topic must be a single Japanese noun word only. No phrases, no "AのB", no punctuation, no spaces, and no explanation. Make them a little challenging: not ultra-basic words like 猫, 車, 花, 山, but still drawable and understandable at a glance. Prefer evocative nouns, places, phenomena, objects, or creatures. Return JSON only in the form {"topics":["topic1","topic2","topic3"]}.${exclusion}` },
+      { text: `Generate exactly 3 Japanese drawing-game topics for the genre "${genre}". Each topic must be a single Japanese noun word only.` },
+      { text: 'Requirements: no phrases, no "AのB", no punctuation, no spaces, no explanation. Avoid ultra-basic words like 猫, 車, 花, 山.' },
+      { text: 'Choose words that are visually distinctive, drawable with a few strokes, and guessable from a sketch. Avoid answers that rely mainly on text, specialist knowledge, or subtle abstract meaning.' },
+      { text: 'Good topics are iconic objects, creatures, places, phenomena, tools, symbols, or concrete concepts with clear visual cues.' },
+      { text: `Return JSON only in the form {"topics":["topic1","topic2","topic3"]}.${exclusion}` },
     ], {
+      model: GEMINI_TOPIC_MODEL,
       responseMimeType: 'application/json',
-      temperature: 0.6,
+      temperature: 0.45,
+      maxOutputTokens: 120,
     });
     const raw = JSON.parse(rawText);
     if (Array.isArray(raw.topics)) {
@@ -598,9 +617,14 @@ async function generateSoloTopic(usedTopics = []) {
     : '';
   try {
     const rawText = await callGemini([
-      { text: `Generate 1 Japanese drawing-game topic. It must be a single noun word only. No phrases, no "AのB", no punctuation, no spaces, and no explanation. Make it a little challenging but still drawable and understandable. Avoid ultra-basic words like 猫, 車, 花, 山. Return only the topic word.${exclusion}` },
+      { text: 'Generate 1 Japanese drawing-game topic. It must be a single noun word only.' },
+      { text: 'No phrases, no "AのB", no punctuation, no spaces, no explanation.' },
+      { text: 'Choose a word that is moderately challenging but still visually distinctive, drawable, and guessable from a sketch. Avoid ultra-basic words like 猫, 車, 花, 山 and avoid answers that rely mainly on text or specialist knowledge.' },
+      { text: `Return only the topic word.${exclusion}` },
     ], {
-      temperature: 0.7,
+      model: GEMINI_TOPIC_MODEL,
+      temperature: 0.45,
+      maxOutputTokens: 40,
     });
     const raw = cleanTopicWord(rawText);
     if (isSingleWordTopic(raw) && !usedTopics.includes(raw)) return raw;
@@ -931,9 +955,13 @@ io.on('connection', (socket) => {
       const base64 = imageData.replace(/^data:image\/[^;]+;base64,/, '');
       const raw = await callGemini([
         { inline_data: { mime_type: 'image/png', data: base64 } },
-        { text: 'Guess the Japanese noun this drawing represents. Return only the guessed word, with no explanation.' },
+        { text: 'You are judging a Japanese drawing-game sketch.' },
+        { text: `Target topic: ${cleanTopic}` },
+        { text: 'Look for the most likely intended subject from the sketch. Focus on large visual cues, overall silhouette, count, and iconic parts. Return only the single guessed Japanese noun, with no explanation.' },
       ], {
-        temperature: 0.2,
+        model: GEMINI_VISION_MODEL,
+        temperature: 0.1,
+        maxOutputTokens: 30,
       });
       const REFUSAL = /拒否|できません|すみません|I'm sorry|I cannot|inappropriate/i;
       if (REFUSAL.test(raw)) {
