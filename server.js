@@ -2,7 +2,6 @@
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
-const OpenAI = require('openai');
 const QRCode = require('qrcode');
 const path = require('path');
 const { randomUUID } = require('crypto');
@@ -13,9 +12,8 @@ const io = new Server(server, {
   maxHttpBufferSize: 5e6, // 5MB上限（デフォルト1MB）
 });
 
-const openai = process.env.OPENAI_API_KEY
-  ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
-  : null;
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY ?? null;
+const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
 
 app.use((_, res, next) => {
   res.setHeader('Content-Security-Policy',
@@ -24,10 +22,58 @@ app.use((_, res, next) => {
 });
 app.use(express.static(path.join(__dirname, 'public')));
 
-if (openai) {
-  console.log('[Startup] OpenAI API key loaded');
+if (GEMINI_API_KEY) {
+  console.log(`[Startup] Gemini API key loaded (${GEMINI_MODEL})`);
 } else {
-  console.log('[Startup] OPENAI_API_KEY not set. AI will answer with a fallback.');
+  console.log('[Startup] GEMINI_API_KEY not set. AI will answer with a fallback.');
+}
+
+async function callGemini(parts, {
+  responseMimeType = 'text/plain',
+  temperature = 0.4,
+} = {}) {
+  if (!GEMINI_API_KEY) {
+    throw new Error('GEMINI_API_KEY is not set');
+  }
+
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(GEMINI_MODEL)}:generateContent`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-goog-api-key': GEMINI_API_KEY,
+      },
+      body: JSON.stringify({
+        contents: [{ role: 'user', parts }],
+        generationConfig: {
+          temperature,
+          response_mime_type: responseMimeType,
+        },
+      }),
+    },
+  );
+
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const message = data?.error?.message || `Gemini API request failed (${response.status})`;
+    throw new Error(message);
+  }
+
+  const text = data?.candidates?.[0]?.content?.parts
+    ?.map((part) => part?.text || '')
+    .join('')
+    .trim();
+
+  if (!text) {
+    const blockReason = data?.promptFeedback?.blockReason;
+    if (blockReason) {
+      throw new Error(`Gemini blocked the prompt: ${blockReason}`);
+    }
+    throw new Error('Gemini returned an empty response');
+  }
+
+  return text;
 }
 
 const WIN_TARGET = 3;
@@ -270,9 +316,9 @@ function parseAiVisionResult(raw) {
 
 async function requestAIGuess(room, imageData) {
   const { game } = room;
-  if (!openai) {
+  if (!GEMINI_API_KEY) {
     game.aiGuess = 'わからない';
-    game.aiReason = 'OpenAI API が利用できないため推測できませんでした';
+    game.aiReason = 'Gemini API が利用できないため推測できませんでした';
     io.to(room.code).emit('game_update', publicState(room));
     checkEndCondition(room);
     return;
@@ -281,20 +327,14 @@ async function requestAIGuess(room, imageData) {
   console.log('[AI] Requesting guess...');
   try {
     const base64 = imageData.replace(/^data:image\/[^;]+;base64,/, '');
-    const response = await openai.chat.completions.create({
-      model: 'gpt-4o',
-      max_tokens: 120,
-      response_format: { type: 'json_object' },
-      messages: [{
-        role: 'user',
-        content: [
-          { type: 'image_url', image_url: { url: `data:image/png;base64,${base64}`, detail: 'high' } },
-          { type: 'text', text: 'Return strict JSON only in the form {"answer":"短い日本語の名詞","reason":"視覚的な根拠を一文で"}.' },
-          { type: 'text', text: `The answer belongs to the genre "${game.selectedGenre || 'ジャンルなし'}". Guess the intended Japanese noun from the drawing. Keep the answer short. Keep the reason to one short Japanese sentence that explains which visual clues you used. If uncertain, still provide your best guess.` },
-        ],
-      }],
+    const raw = await callGemini([
+      { inline_data: { mime_type: 'image/png', data: base64 } },
+      { text: 'Return strict JSON only in the form {"answer":"短い日本語の名詞","reason":"視覚的な根拠を一文で"}.' },
+      { text: `The answer belongs to the genre "${game.selectedGenre || 'ジャンルなし'}". Guess the intended Japanese noun from the drawing. Keep the answer short. Keep the reason to one short Japanese sentence that explains which visual clues you used. If uncertain, still provide your best guess.` },
+    ], {
+      responseMimeType: 'application/json',
+      temperature: 0.3,
     });
-    const raw = response.choices[0].message.content.trim();
     const REFUSAL = /申し訳|できません|すみません|不適切|I'm sorry|I cannot|inappropriate/i;
     if (REFUSAL.test(raw)) {
       game.aiGuess = '__filtered__';
@@ -322,20 +362,17 @@ async function judgeAnswers(topic, answers) {
   const keys = Object.keys(answers);
   if (keys.length === 0) return {};
   const fallback = () => Object.fromEntries(keys.map(k => [k, isCorrect(answers[k], topic)]));
-  if (!openai) return fallback();
+  if (!GEMINI_API_KEY) return fallback();
 
   const numbered = keys.map((k, i) => `${i + 1}. ${answers[k]}`).join('\n');
   try {
-    const resp = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
-      max_tokens: 100,
-      response_format: { type: 'json_object' },
-      messages: [{
-        role: 'user',
-        content: `Topic: ${topic}\nAnswers:\n${numbered}\n\nMark an answer as correct ONLY if it refers to exactly the same thing as the topic. Accept: different scripts (kanji vs kana), Japanese vs English name for the same entity, common abbreviations, and brand names or regional names that are widely used as a general term for the same product (e.g. バンドエイド・カットバン・サビオ・絆創膏 all refer to the same thing). Do NOT accept synonyms, related concepts, broader/narrower categories, or things that are merely similar. Return JSON only in the form {"1":true,"2":false}.`,
-      }],
+    const rawText = await callGemini([
+      { text: `Topic: ${topic}\nAnswers:\n${numbered}\n\nMark an answer as correct ONLY if it refers to exactly the same thing as the topic. Accept: different scripts (kanji vs kana), Japanese vs English name for the same entity, common abbreviations, and brand names or regional names that are widely used as a general term for the same product (e.g. バンドエイド・カットバン・サビオ・絆創膏 all refer to the same thing). Do NOT accept synonyms, related concepts, broader/narrower categories, or things that are merely similar. Return JSON only in the form {"1":true,"2":false}.` },
+    ], {
+      responseMimeType: 'application/json',
+      temperature: 0.1,
     });
-    const raw = JSON.parse(resp.choices[0].message.content);
+    const raw = JSON.parse(rawText);
     console.log('[Judge]', JSON.stringify(raw));
     return Object.fromEntries(keys.map((k, i) => [k, raw[String(i + 1)] ?? isCorrect(answers[k], topic)]));
   } catch (err) {
@@ -517,22 +554,19 @@ async function generateTopicChoices(usedTopics = [], genre = 'ジャンルなし
   const availableFallback = genrePool.filter((t) => !usedTopics.includes(t));
   const extraFallback = TOPIC_FALLBACK.filter((t) => !usedTopics.includes(t) && !availableFallback.includes(t));
   const fallback = availableFallback.concat(extraFallback).slice(0, 3);
-  if (!openai) return fallback;
+  if (!GEMINI_API_KEY) return fallback;
 
   const exclusion = usedTopics.length > 0
     ? `\nDo not reuse any of these already-used topics: ${usedTopics.join(', ')}`
     : '';
   try {
-    const resp = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
-      max_tokens: 60,
-      response_format: { type: 'json_object' },
-      messages: [{
-        role: 'user',
-        content: `Generate exactly 3 Japanese drawing-game topics for the genre "${genre}". Each topic must be a single Japanese noun word only. No phrases, no "AのB", no punctuation, no spaces, and no explanation. Make them a little challenging: not ultra-basic words like 猫, 車, 花, 山, but still drawable and understandable at a glance. Prefer evocative nouns, places, phenomena, objects, or creatures. Return JSON only in the form {"topics":["topic1","topic2","topic3"]}.${exclusion}`,
-      }],
+    const rawText = await callGemini([
+      { text: `Generate exactly 3 Japanese drawing-game topics for the genre "${genre}". Each topic must be a single Japanese noun word only. No phrases, no "AのB", no punctuation, no spaces, and no explanation. Make them a little challenging: not ultra-basic words like 猫, 車, 花, 山, but still drawable and understandable at a glance. Prefer evocative nouns, places, phenomena, objects, or creatures. Return JSON only in the form {"topics":["topic1","topic2","topic3"]}.${exclusion}` },
+    ], {
+      responseMimeType: 'application/json',
+      temperature: 0.6,
     });
-    const raw = JSON.parse(resp.choices[0].message.content);
+    const raw = JSON.parse(rawText);
     if (Array.isArray(raw.topics)) {
       const cleaned = raw.topics
         .map(cleanTopicWord)
@@ -554,7 +588,7 @@ const SOLO_TOPIC_FALLBACK = ['迷宮', '灯台', '化石', '風車', '珊瑚礁'
 const soloUsedTopics = new Map(); // socketId -> string[]
 
 async function generateSoloTopic(usedTopics = []) {
-  if (!openai) {
+  if (!GEMINI_API_KEY) {
     const available = SOLO_TOPIC_FALLBACK.filter(t => !usedTopics.includes(t));
     const pool = available.length > 0 ? available : SOLO_TOPIC_FALLBACK;
     return pool[Math.floor(Math.random() * pool.length)];
@@ -563,15 +597,12 @@ async function generateSoloTopic(usedTopics = []) {
     ? `\nDo not reuse any of these already-used topics: ${usedTopics.join(', ')}`
     : '';
   try {
-    const resp = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
-      max_tokens: 20,
-      messages: [{
-        role: 'user',
-        content: `Generate 1 Japanese drawing-game topic. It must be a single noun word only. No phrases, no "AのB", no punctuation, no spaces, and no explanation. Make it a little challenging but still drawable and understandable. Avoid ultra-basic words like 猫, 車, 花, 山. Return only the topic word.${exclusion}`,
-      }],
+    const rawText = await callGemini([
+      { text: `Generate 1 Japanese drawing-game topic. It must be a single noun word only. No phrases, no "AのB", no punctuation, no spaces, and no explanation. Make it a little challenging but still drawable and understandable. Avoid ultra-basic words like 猫, 車, 花, 山. Return only the topic word.${exclusion}` },
+    ], {
+      temperature: 0.7,
     });
-    const raw = cleanTopicWord(resp.choices[0].message.content);
+    const raw = cleanTopicWord(rawText);
     if (isSingleWordTopic(raw) && !usedTopics.includes(raw)) return raw;
     const available = SOLO_TOPIC_FALLBACK.filter(t => !usedTopics.includes(t));
     const pool = available.length > 0 ? available : SOLO_TOPIC_FALLBACK;
@@ -891,25 +922,19 @@ io.on('connection', (socket) => {
       socket.emit('solo_result', { aiGuess: 'わからない', correct: false, topic: '' });
       return;
     }
-    if (!openai) {
+    if (!GEMINI_API_KEY) {
       socket.emit('solo_result', { aiGuess: 'わからない', correct: false, topic: cleanTopic });
       return;
     }
     console.log(`[Solo] Judging drawing for: "${cleanTopic}"`);
     try {
       const base64 = imageData.replace(/^data:image\/[^;]+;base64,/, '');
-      const response = await openai.chat.completions.create({
-        model: 'gpt-4o',
-        max_tokens: 30,
-        messages: [{
-          role: 'user',
-          content: [
-            { type: 'image_url', image_url: { url: `data:image/png;base64,${base64}`, detail: 'high' } },
-            { type: 'text', text: 'Guess the Japanese noun this drawing represents. Return only the guessed word, with no explanation.' },
-          ],
-        }],
+      const raw = await callGemini([
+        { inline_data: { mime_type: 'image/png', data: base64 } },
+        { text: 'Guess the Japanese noun this drawing represents. Return only the guessed word, with no explanation.' },
+      ], {
+        temperature: 0.2,
       });
-      const raw = response.choices[0].message.content.trim();
       const REFUSAL = /拒否|できません|すみません|I'm sorry|I cannot|inappropriate/i;
       if (REFUSAL.test(raw)) {
         socket.emit('solo_result', { aiGuess: '判定不能', correct: false, topic: cleanTopic, aiFiltered: true });
