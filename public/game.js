@@ -3,11 +3,12 @@
 const socket = io();
 const SESSION_KEY  = 'artguessSessionId';
 const ROOM_KEY     = 'artguessRoomCode';
+const NAME_KEY     = 'artguessPlayerName';
 const DEV_HOLD_MS  = 1200;
 
 // ---- state ----
 let myId        = null;
-let myName      = null;
+let myName      = localStorage.getItem(NAME_KEY) || null;
 let players     = [];
 let phase       = 'lobby';
 let amDrawer    = false;
@@ -35,6 +36,17 @@ const MULTI_TOPIC_GENRES = [
   'スポーツ',
   'ジャンルなし',
 ];
+
+function getEnteredName() {
+  return $('name-input').value.trim();
+}
+
+function persistPlayerName(name) {
+  const value = String(name || '').trim();
+  if (!value) return;
+  localStorage.setItem(NAME_KEY, value);
+  myName = value;
+}
 
 function getSoloBest() { return parseInt(localStorage.getItem(SOLO_BEST_KEY) || '0'); }
 function updateSoloBest(n) {
@@ -1074,6 +1086,7 @@ function setupDeveloperHotspot() {
 setupDeveloperHotspot();
 refreshSoloBestLobby();
 initHowtoTerminal();
+if (myName) $('name-input').value = myName;
 
 // ---- screen management ----
 function showScreen(name) {
@@ -1334,9 +1347,9 @@ if (_urlRoomCode) {
   inviteBtn.textContent = `🔗 ルーム ${_urlRoomCode} に参加`;
   inviteBtn.addEventListener('click', () => {
     triggerButtonSound();
-    const name = $('name-input').value.trim();
+    const name = getEnteredName();
     if (!name) { alert('名前を入力してください。'); return; }
-    myName = name;
+    persistPlayerName(name);
     socket.emit('join_room', { name, roomCode: _urlRoomCode, sessionId: mySessionId });
     $('join-card').classList.add('hidden');
     $('lobby-info').classList.remove('hidden');
@@ -1347,8 +1360,9 @@ if (_urlRoomCode) {
 $('solo-btn').addEventListener('click', startSoloMode);
 $('multi-btn').addEventListener('click', () => {
   triggerButtonSound();
-  const name = $('name-input').value.trim();
+  const name = getEnteredName();
   if (!name) { alert('名前を入力してください。'); return; }
+  persistPlayerName(name);
   $('mode-select').classList.add('hidden');
   $('multi-options').classList.remove('hidden');
 });
@@ -1373,9 +1387,9 @@ $('refresh-rooms-btn').addEventListener('click', () => {
 
 function startSoloMode() {
   triggerButtonSound();
-  const name = $('name-input').value.trim();
+  const name = getEnteredName();
   if (!name) { alert('名前を入力してください。'); return; }
-  myName = name;
+  persistPlayerName(name);
   socket.emit('solo_session_start', { sessionId: mySessionId });
 }
 
@@ -1540,8 +1554,9 @@ $('room-code-join-btn').addEventListener('click', () => {
 
 function showRoomList() {
   triggerButtonSound();
-  const name = $('name-input').value.trim();
+  const name = getEnteredName();
   if (!name) { alert('名前を入力してください。'); return; }
+  persistPlayerName(name);
   $('room-code-input').value = '';
   $('join-card').classList.add('hidden');
   $('room-list-card').classList.remove('hidden');
@@ -1550,9 +1565,9 @@ function showRoomList() {
 
 function doCreateRoom() {
   triggerButtonSound();
-  const name = $('name-input').value.trim();
+  const name = getEnteredName();
   if (!name) return;
-  myName = name;
+  persistPlayerName(name);
   resetLobbyInfoState();
   socket.emit('create_room', { name, sessionId: mySessionId });
   $('join-card').classList.add('hidden');
@@ -1561,9 +1576,9 @@ function doCreateRoom() {
 
 function doJoinRoom(roomCode) {
   triggerButtonSound();
-  const name = $('name-input').value.trim();
+  const name = getEnteredName();
   if (!name) { alert('名前を入力してください。'); return; }
-  myName = name;
+  persistPlayerName(name);
   resetLobbyInfoState();
   socket.emit('join_room', { name, roomCode, sessionId: mySessionId });
   $('room-list-card').classList.add('hidden');
